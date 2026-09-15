@@ -1,0 +1,4 @@
+interface:
+  display_name: "Schematic Terminal"
+  short_description: "Trace image/PDF schematics into terminal diagrams."
+  default_prompt: "Inspect the supplied schematic image or PDF visually, build an evidence-backed connection ledger, verify the requested path twice, and redraw only the verified circuit as a clear terminal/Unicode diagram. Preserve exact net names, refs, pin numbers, active-low suffixes, and differential P/N polarity; separate observed facts from inference."
