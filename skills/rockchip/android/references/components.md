@@ -1,45 +1,43 @@
-# Native Components and Packaging
+# 原生组件与打包
 
-## Kernel and U-Boot
+## 内核和 U-Boot
 
-Read the selected product's kernel version, source/output directories, defconfig/fragments, DT selection, toolchain, and vendor wrapper. Use the wrapper that supplies those values. Direct component commands are appropriate only when the local workflow supports them and their required arguments are established.
+确认已选产品的内核版本、源码/输出目录、defconfig/fragment、设备树、工具链及厂商构建入口。优先使用提供这些参数的封装脚本，仅在本地流程支持且参数已明确时直接构建组件。
 
-Do not assume all Android kernels use the same Clang revision, all trees support `make compile_commands.json`, or every board's kernel build produces a complete boot image. Preserve persistent kernel configuration in the defconfig/fragments actually consumed by the SDK; `savedefconfig` output alone may not update them.
+不要假设所有 Android 内核使用同一 Clang、都支持 `make compile_commands.json`，或每次内核编译都会生成完整启动镜像。持久配置应写入 SDK 实际消费的 defconfig/fragment，单独生成 `savedefconfig` 未必更新这些文件。
 
-For requested clangd support, inspect the kernel's compilation-database targets or `scripts/clang-tools/gen_compile_commands.py --help`, and use the actual object output directory. Preserve existing `.clangd` settings and check a relevant source file; avoid blanket diagnostic suppression.
+请求 clangd 支持时检查内核编译数据库目标或 `scripts/clang-tools/gen_compile_commands.py --help`，使用实际对象输出目录。保留已有 `.clangd`，检查相关源文件，不批量压制诊断。
 
-## Bundled kernel helper
+<a id="bundled-kernel-helper"></a>
+## 随附内核助手
 
-Keep [scripts/kernel.sh](../scripts/kernel.sh) available for the Rockchip Android fast-build workflow. Run it from the SDK root, or copy it there when the requested workflow needs a local helper and no project copy exists. Do not overwrite an existing project script.
+保留 [scripts/kernel.sh](../scripts/kernel.sh)。从 SDK 根目录运行；需要项目副本且尚不存在时可复制到根目录，不覆盖已有定制。
 
-| Argument | Operation |
+| 参数 | 操作 |
 |---|---|
-| No argument | Build the configured kernel/DT image |
-| `uboot` | Build U-Boot |
-| `menuconfig` | Open kernel configuration and generate savedefconfig |
-| `compile_commands` | Generate the kernel compilation database |
+| 无参数 | 构建配置的内核/设备树镜像 |
+| `uboot` | 构建 U-Boot |
+| `menuconfig` | 配置内核并生成 savedefconfig |
+| `compile_commands` | 生成内核编译数据库 |
 
-This helper targets a particular SDK layout. Before execution, verify its Clang path, architecture, product variables, kernel directory, and image destination against this checkout. Establish the requested lunch target explicitly in the same shell before invoking it; do not rely on its first-output-directory fallback. If those assumptions do not match, adapt the project copy or use the SDK wrapper.
+脚本面向特定 SDK 布局。执行前核对 Clang 路径、架构、产品变量、内核目录和镜像目标位置。在同一 shell 明确完成所选目标的 lunch，不依赖首个输出目录回退逻辑。假设不匹配时适配项目副本或使用 SDK 入口。
 
-The U-Boot branch performs clean/mrproper/distclean, so inspect local configuration and confirm that cleanup fits the requested build before using that mode. The script can mask a failed build with a later successful command; check compiler output and artifact freshness rather than treating its final exit status alone as success. These are existing helper limitations, not requirements for other build workflows.
+U-Boot 分支会执行 clean/mrproper/distclean，使用前检查本地配置和清理范围。后续成功命令可能掩盖早先构建失败，应检查编译输出及产物新旧，不能仅看最终退出码。这些是现有助手的限制，不是其他构建流程的要求。
 
-## Android modules
+## Android 模块
 
-After setup and lunch in the same shell, use a module name declared by the tree with `m`, or a supported directory-build helper such as `mmm`. Verify helper availability in this branch. Choose focused tests appropriate to the changed behavior, and distinguish compilation from deployment and execution.
+在同一 shell 初始化和 lunch 后，对源码声明的模块使用 `m` 或本分支支持的 `mmm` 等目录构建助手。验证命令可用性，选择与行为变更相关的测试，区分编译、部署与执行。
 
-## Firmware packaging
+## 固件打包
 
-Inspect the SDK's wrapper and packaging scripts to determine component dependencies, source image paths, output paths, and signing steps. Flags such as `./build.sh -A -u` are examples from some Rockchip SDKs, not a portable command contract. Check whether a wrapper performs `installclean` or rebuilds components before using it for an incremental request.
+检查 SDK 脚本，确定组件依赖、输入/输出路径与签名步骤。`./build.sh -A -u` 只是部分 SDK 示例，不是通用接口。增量操作前确认脚本是否执行 `installclean` 或重建其他组件。
 
-Use the resolved product output and inspect `rockdev` links if this SDK uses them. Check that the packaged inputs belong to the selected product/variant and current build. Android boot layouts vary: account for the board's boot/vendor_boot/init_boot/DTBO images, AVB metadata, dynamic partitions, and slots only where applicable. Do not infer that a kernel change can always be deployed by writing boot alone.
+使用解析后的产品输出，SDK 使用 `rockdev` 时检查链接。所有输入应匹配所选产品、变体和本次构建。按设备实际情况考虑 boot/vendor_boot/init_boot/DTBO、AVB、动态分区和槽位；不能假设改内核只需写 boot。
 
-Only create `update.img`, OTA packages, or target-files archives when requested or needed by the established delivery workflow. Preserve the project's keys and signing configuration; a build issue does not justify disabling verification or changing keys.
+仅在请求或交付流程需要时生成 `update.img`、OTA、target-files。保留项目签名密钥与校验配置，不以构建故障为由关闭验证或换钥。
 
-## Failure handling
+## 失败处理
 
-Read the wrapper exit status and its referenced logs. If a pipeline or helper reports success despite a failed compiler command, diagnose that failure before packaging. Preserve useful intermediates and logs; clean only the affected output when evidence supports stale state. Do not retry a full build repeatedly without addressing the observed failure.
+核对封装脚本退出码及其日志。即使助手返回成功，也应先解决日志中的编译失败再打包。保留有用中间产物，只在证据支持时清理受影响输出，不反复盲跑全量构建。
 
-Official background, interpreted for the checkout's version:
-
-- [Build Android](https://source.android.com/docs/setup/build/building)
-- [Build kernels](https://source.android.com/docs/setup/build/building-kernels)
+官方背景需结合当前版本解释：[Android 构建](https://source.android.com/docs/setup/build/building)、[内核构建](https://source.android.com/docs/setup/build/building-kernels)。

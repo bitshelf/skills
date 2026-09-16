@@ -1,70 +1,37 @@
-# AIoT build.sh Reference
+# AIoT build.sh 参考
 
-All commands run from the SDK root. Entry chain: `build.sh` → `build/top_build.sh`
-→ `build/mkcommon.sh` (argument parsing) → `build/mkcmd.sh` (implementations).
+从 SDK 根目录运行。常见调用链为 `build.sh` → `build/top_build.sh` → `build/mkcommon.sh` 参数解析 → `build/mkcmd.sh` 实现，以本地源码为准。
 
-## Configuration state
+## 配置状态
 
-- `.buildconfig` (SDK root): persisted selection — `LICHEE_PLATFORM`,
-  `LICHEE_LINUX_DEV`, `LICHEE_IC`, `LICHEE_BOARD`, flash media, kernel version.
-- `build/envsetup.sh`: environment plumbing sourced by the wrapper; not a
-  user-facing setup script.
-- Selectors enumerate options live from the tree: board schemes from
-  `device/config/chips/<ic>/configs/`, kernel versions from `kernel/`. The
-  supported SoC set therefore depends on the checkout — enumerate, do not
-  assume.
-- Running any build command without `.buildconfig` drops into the same
-  interactive `mk_config` selection first; `./build.sh autoconfig` exists for
-  scripted selection.
+根目录 `.buildconfig` 持久保存 `LICHEE_PLATFORM`、`LICHEE_LINUX_DEV`、`LICHEE_IC`、`LICHEE_BOARD`、介质和内核版本。`build/envsetup.sh` 通常由封装脚本加载，不必自行 source。
 
-## Directory map (build-relevant)
+选项从源码目录动态枚举，板级方案位于 `device/config/chips/<ic>/configs/`，内核通常位于 `kernel/`。没有配置时部分版本自动进入 `mk_config`；脚本化选择先检查 `autoconfig` 是否支持及所需参数。
 
-| Path | Role |
+| 路径 | 用途 |
 |---|---|
-| `brandy/` | boot0, U-Boot, arisc, DRAM libs (`brandy-2.0/u-boot-*`) |
-| `bsp/` | Allwinner drivers and kernel changes layered on the vanilla kernel |
-| `kernel/` | vanilla kernel trees (`linux-5.10`, `linux-5.15`, …) |
-| `buildroot/`, `debian/`, `yocto/` | rootfs build systems |
-| `device/config/chips/<ic>/configs/` | board schemes |
-| `target/` | board/chip business logic configuration mirroring `device/` |
-| `out/` | build output root (`LICHEE_OUT_DIR`), toolchain under `out/external-toolchain/` |
-| `tools/pack/` | host-side packing tools |
-| `docs/` | per-chip hardware docs, software guides, production guides; see `docs/docs_list.txt` |
+| `brandy/` | boot0、U-Boot、arisc、DRAM 库 |
+| `bsp/` | 叠加于基础内核的全志驱动和改动 |
+| `kernel/` | 各版本基础内核 |
+| `buildroot/`、`debian/`、`yocto/` | rootfs 构建系统 |
+| `device/config/chips/<ic>/configs/` | 板级方案 |
+| `target/` | 板级/芯片配置映射，按实际用途检查 |
+| `out/` | 输出根目录，工具链可能在 `out/external-toolchain/` |
+| `tools/pack/` | 主机侧打包工具 |
+| `docs/` | 硬件、软件和量产资料，可能含 `docs_list.txt` |
 
-## Additional build actions
+## 其他动作
 
-Beyond the table in SKILL.md, the wrapper accepts: `arisc`, `rtos`, `dsp`,
-`bootimg`, `ramfs`, `recovery`, `independent_package`, `mergeconfig`,
-`loadconfig`, `recovery_menuconfig`/`recovery_saveconfig`, `bsp_rootfs`,
-`buildroot_saveconfig`, `check_gki*`, `uboot_force`. Discover the exact set for
-this checkout from `build/mkcommon.sh` before relying on one.
+部分版本还支持 `arisc`、`rtos`、`dsp`、`ramfs`、`recovery`、`independent_package`、`mergeconfig`、`loadconfig`、`recovery_menuconfig`/`recovery_saveconfig`、`bsp_rootfs`、`buildroot_saveconfig`、`check_gki*`、`uboot_force`。调用前查 `build/mkcommon.sh`。
 
-## U-Boot variants
+## U-Boot 与内核配置
 
-The SDK ships multiple U-Boot versions under `brandy/brandy-2.0/`. Newer
-U-Boot (e.g. u-boot-2023) uses a split layout: vanilla U-Boot tree plus a
-`u-boot-bsp` directory that the build merges in automatically. Treat
-`./build.sh bootloader` as the only supported entry; do not build U-Boot by
-hand inside `brandy/` unless the project workflow says otherwise.
+`brandy/brandy-2.0/` 可能含多个 U-Boot 版本，新版本可能将基础树和 `u-boot-bsp` 分开并在构建时合并。优先 `./build.sh bootloader`，仅在项目支持时直接进入组件编译。
 
-## Kernel config fragments
+`menuconfig` 编辑所选方案的有效配置，`saveconfig` 应写回持久配置。脚本化片段操作可检查 `mergeconfig`/`loadconfig`；不要假设保存命令覆盖所有片段。
 
-`menuconfig` operates on the effective defconfig for the selected board;
-`saveconfig` writes the result back to the board's config consumed by the SDK.
-Prefer `mergeconfig`/`loadconfig` for scripted fragment application. Check
-where the board scheme actually stores its defconfig before assuming
-`saveconfig` covers every fragment in use.
+## 环境和失败处理
 
-## Environment note
+主机发行版、依赖和初始化脚本从当前 SDK 开发指南确认，不固定为某个 Ubuntu 版本，也不断言根目录一定有或没有 `install.sh`。
 
-The SDK is developed against Ubuntu (22.04 recommended); other distributions
-may need host package adjustments. There is no SDK-root `install.sh`; host
-setup guidance lives in the SDK development guide's environment chapter and
-the platform download page.
-
-## Failure handling
-
-Each `./build.sh` run prints an `ACTION List:` line naming the functions it
-will execute. On failure, identify the failing action, read its log under
-`out/`, fix, and re-run that scope only. Do not loop full builds on an
-unexplained error, and do not package an image from a partially failed build.
+若日志有 `ACTION List:`，据此定位失败动作及 `out/` 下关联日志。修复后只重跑需要的范围，不反复盲跑全量，不打包部分失败构建。

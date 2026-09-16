@@ -1,36 +1,36 @@
 ---
 name: android
-description: Build and package Rockchip Android SDK components, including framework modules, kernel, U-Boot, and update.img. Use in an Android checkout with build/envsetup.sh and device/rockchip; use the Linux SDK workflow for non-Android Rockchip trees.
+description: 使用 Rockchip Android SDK 构建和打包 framework 模块、内核、U-Boot 及 update.img。适用于包含 build/envsetup.sh 和 device/rockchip 的 Android 源码树；非 Android 的 Rockchip Linux SDK 使用 rk-build。
 ---
 
-# Rockchip Android Builds
+# Rockchip Android 构建
 
-## Resolve the checkout and target
+## 确认源码树和目标
 
-Locate the SDK root, project instructions, Android branch, and vendor build scripts. Inspect the local wrapper's options before using flags such as `-A`, `-K`, `-U`, or `-u`; their meaning and side effects vary by SDK. Keep Android kernel/U-Boot builds in this workflow so they retain the product's toolchain and packaging configuration.
+定位 SDK 根目录、项目说明、Android 分支和厂商构建脚本。先检查封装脚本的选项，再使用 `-A`、`-K`、`-U`、`-u` 等参数；不同 SDK 的含义及副作用可能不同。Android 内核和 U-Boot 也应沿用本流程，以保留产品的工具链和打包配置。
 
-Use the target explicitly requested by the user or established in the current project. Otherwise inspect product declarations, `AndroidProducts.mk`, supported lunch choices, and project build instructions. Existing output directories and fingerprints are corroborating evidence, not authoritative target selection. Never select the first `out/target/product/` entry or silently default to `userdebug`. If multiple plausible targets remain, resolve the ambiguity before compiling.
+使用用户指定或当前项目已确定的目标。否则检查产品声明、`AndroidProducts.mk`、支持的 lunch 选项和项目说明。已有输出目录、构建指纹只能佐证，不能代替目标选择。不要选取 `out/target/product/` 的第一个目录，也不要默认 `userdebug`。存在多个候选时，先澄清再编译。
 
-## Preserve the build environment
+## 保持构建环境
 
-Run `source build/envsetup.sh`, a successful `lunch`, and dependent build commands in the same Bash process. Separate tool calls do not preserve shell functions or exported variables; reinitialize in each new build shell. A persistent shell or script is also valid. Stop if setup or lunch fails.
+在同一个 Bash 进程中执行 `source build/envsetup.sh`、成功的 `lunch` 及依赖它们的构建命令。独立工具调用不会保留 shell 函数和环境变量；新建构建 shell 时重新初始化，也可以使用持久 shell 或脚本。初始化或 lunch 失败即停止。
 
-Use the lunch syntax supported by this checkout, including a release configuration when required. After selection, inspect resolved product, variant, and product output using the branch's build-variable helpers. Do not derive the output path by appending `target/product` to `$OUT`, which may already identify the product directory.
+使用当前分支支持的 lunch 语法；需要 release 配置时一并指定。通过该分支的构建变量查询工具确认产品、变体和输出目录。不要直接给 `$OUT` 追加 `target/product`，它可能已经是产品目录。
 
-## Match the requested scope
+## 按请求选择范围
 
-| Request | Action |
+| 请求 | 操作 |
 |---|---|
-| Compile one module | Use the branch-supported module build command for its actual module name or path |
-| Compile Android/framework | Use the SDK's Android build path; package only when requested or required by the project's delivery workflow |
-| Compile kernel or U-Boot | Use the SDK component wrapper and selected product configuration |
-| Package existing output | Check component freshness and compatibility, then run the packaging operation |
-| Build complete firmware | Follow the SDK's component dependencies and packaging order |
+| 单模块编译 | 按真实模块名或路径使用分支支持的命令 |
+| Android/framework 编译 | 使用 SDK 对应入口；仅在请求或交付流程需要时打包 |
+| 内核或 U-Boot 编译 | 使用 SDK 组件脚本和已选产品配置 |
+| 打包已有产物 | 先核对产物新旧、兼容性，再打包 |
+| 完整固件构建 | 遵循 SDK 的组件依赖和打包顺序 |
 
-The bundled [scripts/kernel.sh](scripts/kernel.sh) is available for Rockchip Android kernel/U-Boot builds. Read its [usage and SDK assumptions](references/components.md#bundled-kernel-helper) before using or copying it. Prefer an existing project copy when it already matches the SDK; preserve local customizations. Do not pin a compiler from another SDK or run clean/mrproper as routine setup. For packaging and native components, read [references/components.md](references/components.md).
+保留随附的 [scripts/kernel.sh](scripts/kernel.sh)，供 Rockchip Android 内核/U-Boot 快速构建使用。调用或复制前阅读[用法及 SDK 假设](references/components.md#bundled-kernel-helper)。优先使用已匹配 SDK 的项目副本，保留本地定制。不要套用其他 SDK 的编译器，也不要把 clean/mrproper 当常规准备。组件与打包细节见 [references/components.md](references/components.md)。
 
-## Verify and report
+## 验证与报告
 
-Preserve the build exit status when logging through a pipeline (`pipefail` in Bash). Inspect the first substantive failure before broadening the build or cleaning. Use the branch's expected JDK/toolchain and host setup; do not install a guessed system JDK based only on the Android release number.
+日志经过管道时用 Bash `pipefail` 保留失败状态。扩大编译范围或清理前，先定位首个实质错误。使用该分支要求的 JDK、工具链和宿主环境，不要只凭 Android 大版本猜测 JDK。
 
-Report the selected target, commands, exit result, and actual artifact paths. A module build does not establish a fresh system image; a packaged image does not establish device acceptance. Flashing, wiping, unlocking, and switching source branches are separate actions requiring the user's requested scope. For an authorized flash, use the board's Android flashing procedure and verify the intended DUT, image set, and boot result. Boot-mode entry supports serial shortcuts held at power-on (`ctrl+d` Loader, `ctrl+b` MASKROM, `ctrl+f` fastboot) — the full key table lives in the `rk-debug` skill's remote-target-debug reference.
+报告目标、实际命令、退出结果及产物路径。模块编译不等于系统镜像已更新，打包完成不等于真机验收。烧写、擦除、解锁和切换源码分支须在用户授权范围内。执行已授权烧写时，按该板 Android 流程核对 DUT、镜像组合及启动结果。串口启动快捷键依赖具体引导程序支持；需要时使用 `rk-debug` 技能核对模式入口及验证方法。

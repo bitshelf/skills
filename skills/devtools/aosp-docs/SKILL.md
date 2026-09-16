@@ -1,30 +1,30 @@
 ---
 name: aosp-docs
-description: Research Android platform and AOSP architecture, build systems, HALs, security, kernel integration, and compatibility using official documentation and version-matched source. Use for platform explanations, requirement checks, and documentation-backed diagnosis, rather than ordinary Android app SDK questions or routine local builds.
+description: 使用官方文档及版本匹配源码研究 Android 平台/AOSP 架构、构建、HAL、安全、内核集成与兼容性。适用于平台解释、要求核对和文档支持的诊断，不用于普通 Android 应用 SDK 问题或常规本地构建。
 ---
 
-# AOSP Documentation and Source Research
+# AOSP 文档与源码研究
 
-## Establish the version and question
+## 确定版本和问题
 
-Identify the platform topic and relevant Android release, source branch/tag, device/vendor fork, or launch level when it affects the answer. Use available checkout/configuration evidence first; ask only for missing context that materially changes the conclusion. A general conceptual explanation need not wait for a device model.
+确认平台主题及影响结论的 Android 版本、源码分支/tag、设备/厂商分支和首发版本。优先读取现有源码及配置，仅询问确实影响结论的缺失信息；通用概念解释不必等待设备型号。
 
-Distinguish upstream behavior, vendor implementation, compatibility requirements, and recommended practice. Current documentation can describe APIs or build commands absent from an older vendor tree.
+区分上游行为、厂商实现、兼容性要求和建议实践。最新文档可能包含旧厂商源码树没有的 API 或命令。
 
-## Find authoritative evidence
+## 查找权威证据
 
-Use `source.android.com` for platform documentation and release-specific CDD requirements. For implementation details, inspect the local checkout or the corresponding revision on `android.googlesource.com` / `cs.android.com`. Local source is the primary evidence for what this checkout actually does; do not replace it with a current documentation example.
+平台文档和对应版本 CDD 使用 `source.android.com`。实现细节查看本地源码或 `android.googlesource.com` / `cs.android.com` 对应版本。本地源码是判断当前项目行为的首要证据，不能用最新文档示例替代。
 
-Use the available browser/search tools; do not depend on client-specific tool names. Start with a directly relevant page or a domain-limited search containing the subsystem and version. Read [references/source-map.md](references/source-map.md) when choosing a documentation area or source repository. Follow relevant links rather than loading the entire map's destinations.
+使用当前可用的浏览/搜索工具，不依赖特定客户端工具名。先找直接相关页面，或按官方域名、子系统和版本检索。选择文档领域时读 [references/source-map.md](references/source-map.md)，按需跟进链接，不一次加载全部页面。
 
-Check live sources for moving branches such as `android-latest-release`, release cadence, support/EOL claims, current kernel branches, and toolchain requirements. Do not embed their current values as permanent skill rules. Preserve a project's pinned manifest; a documentation recommendation to use a newer branch does not authorize switching or syncing the checkout.
+`android-latest-release`、发布节奏、支持/EOL、当前内核分支和工具链要求必须实时核对，不固化为永久规则。保留项目锁定的 manifest；文档建议升级不代表授权切换或同步源码。
 
-## Apply the evidence
+## 应用证据
 
-For HALs, verify the release's supported interface type, stability/versioning, and vendor compatibility constraints before proposing AIDL/HIDL changes. For kernels, establish whether the device uses GKI or a vendor kernel and which requirements apply. For build files, inspect this branch's Soong/Make support instead of requiring a broad migration. For SELinux, diagnose the denial and intended access rather than defaulting to permissive mode.
+HAL 修改前核对该版本支持的 AIDL/HIDL、稳定性/版本和 vendor 兼容约束。内核问题先区分 GKI 与厂商内核。构建文件按当前分支的 Soong/Make 支持处理，不要求大范围迁移。SELinux 从 denial 和预期访问定位，不默认切为 permissive。
 
-For compatibility questions, select the CDD and CTS/VTS material matching the release and device category. Quote requirement language narrowly and retain its conditions; a passing test is not by itself proof of complete compatibility.
+兼容性问题选择对应发布版本及设备类型的 CDD、CTS/VTS，准确保留要求的前提条件。单项测试通过不代表完全兼容。
 
-Answer with the conclusion, version/scope, supporting source links, and any relevant local code evidence. Label inferences and unresolved conflicts. If authoritative material is unavailable, state what remains unverified instead of inventing a citation or silently applying current behavior to an older release.
+回答给出结论、版本/范围、来源链接和相关本地代码，标明推断及未解决冲突。缺少权威材料时说明未验证部分，不编造引用或把新版本行为套到旧版本。
 
-A research request does not itself authorize source sync, builds, device changes, or migration. When the user requests implementation, carry out the authorized work using the checkout's workflow. Rockchip Android build execution belongs to the available `android` skill; this skill supplies the documentation evidence when needed.
+研究请求不自行授权源码同步、构建、设备修改或迁移。用户请求实现时沿项目流程执行；Rockchip Android 构建使用 `android` 技能，本技能按需提供文档证据。

@@ -1,43 +1,41 @@
-# Flashing Rockchip Linux Images
+# Rockchip Linux 镜像烧写
 
-## Resolve the write target
+## 确认写入目标
 
-Record the selected DUT, USB host, artifact checksum, intended partition or full-image scope, and observed device mode. On remote setups, transfer the artifact to a task-specific directory on the USB host and compare checksums there. Use configured SSH credentials and normal host-key verification.
+记录所选 DUT、USB 主机、产物校验和、分区或整包范围及设备模式。远程操作将产物传到 USB 主机的任务专用目录并复核校验和，沿用配置的 SSH 凭证和主机密钥验证。
 
-Run the installed `upgrade_tool` help/version and `LD` on the host physically connected to the DUT. Enumeration proves a Rockusb device is present, not that it is the intended board. Correlate USB path/serial/chip information and the project topology. With multiple or ambiguous devices, stop before writing until selection is unambiguous. Do not reboot the Dev Host or write its disks as part of a DUT flash.
+在物理连接 DUT 的主机查看已安装 `upgrade_tool` 的帮助/版本并运行 `LD`。枚举只证明 Rockusb 设备存在，不证明它是指定板卡；结合 USB 路径、序列号、芯片信息和项目拓扑确认。多设备或身份模糊时先解决选择问题，不写入。不要重启 Dev Host 或写其磁盘。
 
-For target SSH, corroborate identity using serial-derived network information, model, kernel, and storage layout. Two boards may have the same model; a matching SoC alone is insufficient.
+目标 SSH 地址需结合串口网络信息、型号、内核及存储布局确认；同型号板卡不能仅凭 SoC 区分。
 
-## Enter the required mode
+## 进入所需模式
 
-Use the current serial tool schema and configured DUT. From responsive Linux, a supported `reboot loader` may enter Rockusb directly. From U-Boot, inspect command support and storage numbering before using `rockusb 0 mmc <device>`. A U-Boot prompt is not itself Loader mode; confirm USB enumeration afterward.
+使用当前串口工具 schema 和所选 DUT。运行中的 Linux 若支持 `reboot loader` 可直接进入；U-Boot 中先查命令支持及存储编号，再使用 `rockusb 0 mmc <device>`。U-Boot 提示符不等于 Loader，随后检查 USB 枚举。
 
-If software entry is unavailable, use a configured reset/MASKROM sequence within the authorized recovery scope. Boot-time serial shortcuts are another hardware-level entry: hold `ctrl+d` (Loader) or `ctrl+b` (MASKROM) from power-on — retries may be needed and they are ineffective with secure boot enabled. Confirm the wiring and tool behavior; do not assume a button pulse includes reset. Follow board documentation for physical recovery, not a generic pin-short recipe.
+软件入口不可用时，使用授权范围内已配置的复位/MASKROM 时序。部分引导程序支持开机串口 `ctrl+d` / `ctrl+b`，但依赖实现和启动阶段，不能保证损坏启动链时可用；详见 `rk-debug` 技能。按板卡文档检查物理恢复，不套用通用短接步骤，不假设按键脉冲自动包含复位。
 
-In MASKROM, download a board-compatible loader with `DB` when required, then re-enumerate before the next operation. Stop on loader errors or unexpected storage information; do not blindly retry writes or escalate to erase/full recovery.
+MASKROM 下如需要，用 `DB` 下载匹配板卡的 loader，再重新枚举。loader 出错或存储信息异常时停止，先诊断，不盲重试或扩大为擦除/整包恢复。
 
-## Select the image operation
+## 选择镜像操作
 
-Consult installed help for exact syntax and supported flags. Typical operations:
+以下是常见助记符，大小写、参数及支持范围以本机帮助为准，不声称只能输入小写。
 
-| Operation | Purpose |
+| 操作 | 用途 |
 |---|---|
-| `LD` | Enumerate USB devices |
-| `DB <loader>` | Download a loader to RAM |
-| `PL` | Inspect partition layout where supported |
-| `DI -<partition> <image>` | Write a partition image by name, e.g. `di -boot boot.img`, `di -uboot uboot.img` |
-| `WL <start-sector> <image>` | Write a raw image at a verified sector offset |
-| `UF <update.img>` | Apply a packaged full firmware image |
-| `RD` | Reset the selected USB target |
+| `LD` | 枚举 USB 设备 |
+| `DB <loader>` | 将 loader 下载到 RAM |
+| `PL` | 在支持的版本上查询分区布局 |
+| `DI -<partition> <image>` | 按名称写分区，例如 `di -boot boot.img` |
+| `WL <start-sector> <image>` | 按已验证扇区偏移写原始镜像 |
+| `UF <update.img>` | 写入打包的完整固件 |
+| `RD` | 复位所选 USB 目标 |
 
-Commands are shown as the uppercase mnemonics printed by the tool's help; in practice they are typed lowercase (`upgrade_tool uf update.img`, `wl 0 rootfs.wic`). Follow the installed help for exact syntax and flags.
+rootfs/分区迭代从当前分区表读取起点和容量，并与固件布局比对。核对扇区单位、展开后大小及分区容量。稀疏或打包镜像需兼容写入器或转换，不能只看文件大小。不复用历史 LBA 或 `/dev/mmcblk0pN`。常见版本中 `DI -r` 表示 recovery 而非 rootfs，仍需查本机映射。
 
-For raw rootfs/partition iteration, derive the start and capacity from the current target partition table and compare with the intended firmware layout. Verify sector units and that the expanded image fits. Sparse or packaged images require a compatible writer or conversion; file size alone does not establish fit. Never reuse a historical LBA or `/dev/mmcblk0pN`. `DI -r` denotes recovery in common versions, not rootfs; verify installed mappings.
+分区更新满足需求时使用分区写入，整包发布/恢复才使用 `update.img`。打包的 Rockchip `update.img` 通常不是裸 SD 镜像，不能因扩展名为 img 就用 `dd`。可移除介质使用 SDK 文档指定的原始磁盘镜像，并核实目标是所选、未挂载设备。
 
-Use partition writes when they satisfy the requested update. Use `update.img` for the requested full firmware/recovery workflow. A Rockchip packaged `update.img` is not generally a raw SD-card image: never feed it to `dd` just because of its extension. For removable media, use the SDK's documented raw disk image and verify the destination is the intended unmounted removable device.
+仅在用户选定或项目流程支持时采用 DUT 侧 `dd`。核对目标、分区名、挂载和容量，不覆盖已挂载根文件系统。写入完成后刷新并检查退出状态再重启。`DI` 失败不授权猜测块设备作为替代。
 
-Target-side `dd` is an alternative only when explicitly chosen or supported by the project workflow. Verify the exact target, resolve partition names, inspect mounts, and ensure the image fits; do not overwrite a mounted root filesystem. Flush writes and check command success before rebooting. A failure from `DI` is not permission to guess a block-device fallback.
+## 验收
 
-## Acceptance
-
-Keep writer output and verify content by supported readback/checksum when practical. After reset, capture the current boot and check expected build identity, storage/mount state, and changed functionality. If writing succeeds but boot verification fails, retain evidence and diagnose before another write.
+保留烧写输出，可行时按工具支持进行回读/校验。复位后记录本次启动，核对构建身份、分区/挂载及变更功能。写入成功但启动验证失败时保留证据，先诊断再决定下一次写入。

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# fetch_patch.sh — 输入 commit/change 页面 URL，自动识别平台并免克隆拉取 raw patch 落盘
-# 支持: cgit / sourceware gitweb / gitiles / GitHub / GitLab / Gerrit / lore
-# 用法:
+# fetch_patch.sh — Fetch a raw patch from a commit/change URL without cloning
+# Supports: cgit / sourceware gitweb / gitiles / GitHub / GitLab / Gerrit / lore
+# Usage:
 #   fetch_patch.sh <url> [outdir]
 #   fetch_patch.sh --lore <list> <msgid> [outdir]
-# 失败语义: HTTP 错误 / 空响应 / HTML 错误页 / base64 非法 → 清理半成品并以非零退出
+# On HTTP, empty, HTML, or base64 errors, remove partial output and fail
 set -euo pipefail
 
 DEFAULT_OUTDIR="/tmp/backport-fetch"
@@ -28,8 +28,8 @@ outdir 默认 /tmp/backport-fetch
 EOF
 }
 
-# 取证统一走这里：-f 让 4xx/5xx 直接失败，--retry 抗瞬时抖动；落盘后嗅探，挡掉 200 返回的 HTML 错误页
-sniff_html() {  # 内容像 HTML 返回 0
+# Fail on HTTP errors, retry transient failures, and reject HTML responses
+sniff_html() {  # Return zero for HTML-like content
     local chunk
     chunk="$(LC_ALL=C dd if="$1" bs=1024 count=1 2>/dev/null || true)"
     case "$chunk" in
@@ -38,7 +38,7 @@ sniff_html() {  # 内容像 HTML 返回 0
     return 1
 }
 
-fetch_raw() {  # $1=输出文件 $2=URL 其余=附加 curl 参数（不含 token 的部分才进错误信息）
+fetch_raw() {  # $1=output file $2=URL remaining args: curl options; never include tokens in errors
     local out="$1" target="$2"; shift 2
     if ! curl -fsSL --retry 2 --retry-delay 2 --connect-timeout 15 "$@" "$target" -o "$out"; then
         rm -f "$out"; die "取证失败（HTTP 错误或网络不可达）: $target"
@@ -51,7 +51,7 @@ fetch_raw() {  # $1=输出文件 $2=URL 其余=附加 curl 参数（不含 token
     fi
 }
 
-fetch_b64() {  # 同 fetch_raw，但响应应为 base64 文本（gitiles format=TEXT / Gerrit patch 端点）
+fetch_b64() {  # Like fetch_raw, but decode base64 from gitiles or Gerrit
     local out="$1" target="$2"; shift 2
     local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/fetch_b64.XXXXXX")"
     if ! curl -fsSL --retry 2 --retry-delay 2 --connect-timeout 15 "$@" "$target" -o "$tmp"; then
@@ -72,7 +72,7 @@ case "${1:-}" in
     -h|--help) usage; exit 0 ;;
 esac
 
-# ---------- --lore 显式模式 ----------
+# ---------- --lore explicit mode ----------
 if [ "${1:-}" = "--lore" ]; then
     list="${2:-}"; msgid="${3:-}"
     { [ -n "$list" ] && [ -n "$msgid" ]; } || { usage; exit 1; }
@@ -105,7 +105,7 @@ if echo "$url" | grep -q 'lore\.kernel\.org'; then
     exit 0
 fi
 
-# ---------- cgit: /commit/?id= 或 /patch/?id= ----------
+# ---------- cgit: /commit/?id= or /patch/?id= ----------
 if echo "$url" | grep -qE 'git\.kernel\.org|git\.yoctoproject\.org|git\.busybox\.net|git\.openembedded\.org'; then
     if echo "$url" | grep -q '/commit/?id='; then
         patch_url="${url/\/commit\/?id=//patch/?id=}"
@@ -121,9 +121,9 @@ if echo "$url" | grep -qE 'git\.kernel\.org|git\.yoctoproject\.org|git\.busybox\
     exit 0
 fi
 
-# ---------- sourceware gitweb: ?p=<repo>;a=commit;h=<sha>（query 风格）或 path 风格 ----------
+# ---------- sourceware gitweb: ?p=<repo>;a=commit;h=<sha>query or path form ----------
 if echo "$url" | grep -q 'sourceware\.org'; then
-    if echo "$url" | grep -qE '[;?]a=commit(diff)?([;#]|$)'; then   # a=commit / a=commitdiff 页面 → a=patch
+    if echo "$url" | grep -qE '[;?]a=commit(diff)?([;#]|$)'; then   # Convert a=commit or a=commitdiff to a=patch
         patch_url=$(echo "$url" | sed -E 's/([;?])a=commit(diff)?([;#]|$)/\1a=patch\3/')
     elif echo "$url" | grep -qE '[;?]a=patch([;#]|$)'; then
         patch_url="$url"
@@ -140,9 +140,9 @@ if echo "$url" | grep -q 'sourceware\.org'; then
     exit 0
 fi
 
-# ---------- Gerrit: review 子域 /c/<proj>/+/<num> ----------
+# ---------- Gerrit: review host /c/<proj>/+/<num> ----------
 if echo "$url" | grep -qE 'review.*googlesource\.com|/c/.*/\+/[0-9]+'; then
-    origin=$(echo "$url" | sed -n 's|^\(https\?://[^/]*\)/.*|\1|p')   # 含 scheme，作 URL 前缀
+    origin=$(echo "$url" | sed -n 's|^\(https\?://[^/]*\)/.*|\1|p')   # Include scheme for the URL prefix
     num=$(echo "$url" | sed -n 's|.*/+/\([0-9]*\).*|\1|p')
     [ -n "$origin" ] || die "Gerrit URL 需要 http(s):// 开头: $url"
     [ -n "$num" ] || die "无法从 Gerrit URL 解析 change 号: $url"
@@ -152,7 +152,7 @@ if echo "$url" | grep -qE 'review.*googlesource\.com|/c/.*/\+/[0-9]+'; then
     exit 0
 fi
 
-# ---------- gitiles: googlesource /+/（ref 可为 sha 或多级 refs/tags/...） ----------
+# ---------- gitiles: googlesource /+/(SHA or multi-component refs/tags ref) ----------
 if echo "$url" | grep -q 'googlesource\.com'; then
     base=$(echo "$url" | sed -n 's|^\(https\?://[^/]*/[^+]*\)/+/.*|\1|p')
     ref=$(echo "$url" | sed -n 's|.*/+/\([^?]*\).*|\1|p')
@@ -171,8 +171,8 @@ fi
 # ---------- GitHub ----------
 if echo "$url" | grep -q 'github\.com'; then
     if echo "$url" | grep -q '/commit/'; then
-        patch_url="${url%%\?*}.patch"   # 去掉已有 query 再追加 .patch
-        patch_url="${patch_url%.patch}.patch"  # 防重复
+        patch_url="${url%%\?*}.patch"   # Drop the query before appending .patch
+        patch_url="${patch_url%.patch}.patch"  # Avoid duplicate suffixes
     else
         die "GitHub URL 需要 /commit/<sha> 形式: $url"
     fi
@@ -183,14 +183,14 @@ if echo "$url" | grep -q 'github\.com'; then
     exit 0
 fi
 
-# ---------- GitLab（含 salsa.debian.org 等自建实例） ----------
+# ---------- GitLab(including self-hosted instances) ----------
 if echo "$url" | grep -qE '/-/commit/'; then
     patch_url="${url%%\?*}.patch"
     patch_url="${patch_url%.patch}.patch"
     sha=$(echo "$url" | sed -n 's|.*/-/commit/\([a-f0-9]*\).*|\1|p')
-    host=$(echo "$url" | sed -n 's|^https\?://\([^/]*\)/.*|\1|p')   # 仅主机名，用于文件名
+    host=$(echo "$url" | sed -n 's|^https\?://\([^/]*\)/.*|\1|p')   # Hostname only, for the filename
     out="$OUTDIR/gitlab-${host}-${sha:-unknown}.patch"
-    # 公开仓库免 token；私有仓库设置 GITLAB_TOKEN 环境变量（token 不进错误输出）
+    # Public repos need no token; private repos use GITLAB_TOKEN without logging it
     if [ -n "${GITLAB_TOKEN:-}" ]; then
         fetch_raw "$out" "$patch_url" --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}"
     else

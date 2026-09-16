@@ -1,54 +1,41 @@
-# Board Scheme Configuration
+# 板级方案配置
 
-A "board scheme" is a directory under
-`device/config/chips/<ic>/configs/<board>/` — the unit selected as
-`LICHEE_BOARD` during `./build.sh config`. `target/` mirrors these per board
-during the build. Layout (verify in the actual checkout; variants exist):
+板级方案通常位于 `device/config/chips/<ic>/configs/<board>/`，对应 `LICHEE_BOARD`。构建期间可能生成 `target/` 映射，布局须查当前源码。
 
-```
+```text
 <board>/
-├── BoardConfig.mk            # build variables for the scheme
-├── sys_config.fex            # SoC/board-level configuration
-├── sys_config_ddr_*.fex      # per-DDR-capacity variants
-├── uboot-board.dts           # U-Boot device tree
+├── BoardConfig.mk
+├── sys_config.fex
+├── sys_config_ddr_*.fex
+├── uboot-board.dts
 ├── spl.dts, boottone.fex
-├── buildroot/ debian/ yocto/ dragonboard/   # per-OS-overlay dirs
+├── buildroot/ debian/ yocto/ dragonboard/
 │   ├── BoardConfig.mk
-│   ├── env.cfg               # U-Boot environment for this OS
-│   └── sys_partition.fex     # partition table for this OS
-└── linux-<ver>/              # per-kernel-version dirs (linux-5.10/5.15/6.6)
-    ├── board.dts             # kernel device tree for this board
-    ├── bsp_defconfig         # kernel config consumed by the SDK
+│   ├── env.cfg
+│   └── sys_partition.fex
+└── linux-<ver>/
+    ├── board.dts
+    ├── bsp_defconfig
     ├── bsp_recovery_defconfig
     ├── env-<ver>.cfg
     └── sys_partition.fex
 ```
 
-## Key files
+`BoardConfig.mk` 定义构建变量；OS 子目录提供各系统覆盖项，内核版本目录提供对应 DTS 和配置。
 
-- `sys_partition.fex` — partition table (names, sizes, download images,
-  user-data flags). Packing runs `update_mbr` on it to regenerate
-  `sunxi_mbr.fex` / `sunxi_gpt.fex` and the download list `dlinfo.fex`.
-- `env*.cfg` — U-Boot environment; packed via `u_boot_env_gen env.cfg env.fex`.
-- `sys_config.fex` — legacy SoC/board configuration still consumed by packing
-  and some drivers.
-- `board.dts` / `bsp_defconfig` — the kernel-side board definition; changes
-  require `./build.sh kernel` (and pack) to take effect on the target.
+## 关键文件
 
-## Adaptation discipline
+- `sys_partition.fex`：分区名、大小、下载镜像及用户数据属性。先经 `script` 转为 `sys_partition.bin`，再由 `update_mbr` 等工具生成分区/下载信息；`sunxi_mbr.fex`、GPT、`dlinfo.fex` 的具体产物按本版本打包链核对，不能直接把文本交给 `update_mbr`。
+- `env*.cfg`：U-Boot 环境，经 `u_boot_env_gen env.cfg env.fex` 转换。
+- `sys_config.fex`：传统芯片/板级配置，打包及部分驱动仍可能使用。
+- `board.dts` / `bsp_defconfig`：内核板级定义，修改后重建相关镜像、打包并部署才能验证。
 
-- Start from the closest existing scheme: copy the directory to a new name
-  under the same chip, then adjust. Cross-chip ports are not file renames —
-  follow the chip's porting checklist in `docs/`.
-- Partition edits must keep image sizes consistent with the built artifacts;
-  after editing `sys_partition.fex`, re-run `./build.sh pack` and verify the
-  boot log partition table matches.
-- Kernel config changes: `./build.sh menuconfig` then `./build.sh saveconfig`
-  writes back to the scheme's defconfig — confirm the file actually changed in
-  the scheme directory, not only in `out/`.
-- Boot packaging (boot0/U-Boot/boot_package) is handled by the pack step;
-  `boot_package.cfg` and signing inputs are driven by `dragonsecboot` inside
-  the packing tools. Do not hand-assemble boot images.
+## 适配要求
 
-Details: `Tina_Linux_打包流程_使用指南.pdf` and `Tina_Linux_存储_开发指南.pdf`
-(see [doc-map.md](doc-map.md)).
+从同芯片最接近方案复制为新名称再修改；跨芯片不是简单改名，应按 `docs/` 的移植清单处理。
+
+修改分区后重打包，核对产物容量及真机启动分区表。`menuconfig` 后运行 `saveconfig`，确认真正更新了方案 defconfig，不只是 `out/`；片段另行核对。
+
+boot0/U-Boot/boot_package 按 SDK 打包流程生成。`dragonsecboot` 处理 `boot_package.cfg` 等输入，签名须沿项目配置，不自行拼接启动镜像。
+
+参考《Tina_Linux_打包流程_使用指南》及存储指南，定位方式见 [doc-map.md](doc-map.md)。

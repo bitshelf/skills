@@ -1,58 +1,38 @@
-# Allwinner Flashing and Download Mode
+# Allwinner 烧写与下载模式
 
-## Image kinds
+## 镜像类型
 
-- `./build.sh pack*` produces a packed firmware image (PhoenixSuit/LiveSuit
-  format) under `out/`. `pack_card`/`pack -d` produce `*_card0.img` variants
-  whose serial output is routed to the TF card slot for production use.
-- `boot.img` (boot partition payload, boot.img or uImage format depending on
-  board config) and `rootfs.img` (squashfs by default) are partition images
-  inside the package, not standalone flashable files.
-- A packed image is **not** a raw disk image: never `dd` it to media. For
-  bootable cards use PhoenixCard with the card image, not a raw writer.
+`./build.sh pack*` 通常在 `out/` 生成 PhoenixSuit/LiveSuit 固件包。`pack_card`/`pack -d` 的 `*_card0.img` 是串口转 TF 卡槽的变体，不等于原始 SD 镜像。
 
-## Tools
+`boot.img`、`rootfs.img` 是包内分区载荷，格式随板级配置变化，不假设 rootfs 一定是 squashfs。单分区能否直接写入取决于烧写工具和当前布局。固件包不能直接 `dd`；制作启动卡时按 PhoenixCard 文档选择模式和输入。
 
-| Tool | Host | Purpose |
+## 工具
+
+| 工具 | 主机 | 用途 |
 |---|---|---|
-| PhoenixSuit | Windows | Development flashing: full image, per-partition, keep-data upgrade, erase, address-targeted writes |
-| PhoenixUSBpro | Windows | Mass production, up to 24 devices over USB |
-| PhoenixCard | Windows | Writes card-bootable images |
-| LiveSuit | Ubuntu | USB flashing (use the Linux64 build on 64-bit hosts) |
+| PhoenixSuit | Windows | 开发烧写；分区、保留数据和擦除选项按版本核实 |
+| PhoenixUSBpro | Windows | USB 多设备量产，数量上限查本版文档 |
+| PhoenixCard | Windows | 制作启动卡/量产卡 |
+| LiveSuit | Linux | USB 烧写，选择匹配主机架构的发行包 |
 
-Windows tools are bundled in APST (Allwinner Platform Service Tool); each tool
-carries its own docs. The copies inside the SDK `tools/` tree are deprecated
-and scheduled for removal — prefer platform releases. For offline/burner
-programming see the SDK's offline flashing guide (Linux_MMC_NOR 离线烧录).
+部分 AIoT 指南要求从全志平台/APST 获取维护工具，不继续依赖 SDK 内旧副本。安装与离线烧录见当前工具和 SDK 文档。Windows 检查 AW USB 驱动以及下载模式枚举。
 
-Windows requires the AW USB driver (in the tool's `Drivers/AW_Driver`); the
-device must enumerate as a download-mode device before the tool can see it.
+## FEL/EFEX 入口
 
-## Entering download mode (FEL/EFEX)
+按当前板和引导程序支持选择：
 
-Any one of these suffices, in rough order of convenience:
+1. 运行中的 Linux 使用 `reboot efex`，启用 ADB 时可 `adb shell reboot efex`。
+2. U-Boot 提示符使用 `efex`。
+3. 在引导阶段通过受管串口重复发送 `2`；该入口依赖相应软件执行。
+4. 板上已接线的 FEL 按键配合上电。
+5. 启动介质无有效镜像时的 BROM 下载回退；不要为此主动擦除介质。
+6. 固件支持的 `fel_key` 按键阈值配置。
+7. 文档指定的下载模式启动卡。
 
-1. From a running Linux system: `reboot efex` (or `adb shell reboot efex`).
-2. At the U-Boot console: `efex`.
-3. Serial '2' key: hold the `2` key in the serial terminal while powering on —
-   boot0 detects the repeated character and enters download mode.
-4. FEL button (if wired on the board): hold while powering on.
-5. Blank or unreadable boot media (new/erased flash): BROM falls back to
-   download mode automatically.
-6. `fel_key` config: a key press within configured min/max key values at
-   power-on.
-7. Special boot card: boot from a prepared card that drops into download mode.
+并非任一方法都适用于任一板。启用了 fastboot 的 U-Boot 还可能提供该模式，它与 FEL/EFEX 分开验证。
 
-U-Boot additionally exposes standard `fastboot` commands on boards where the
-feature is enabled.
+## 写入和验收
 
-## Cautions
+写入前核对指定 DUT、镜像校验和、模式、工具枚举、分区或整包范围。USB 烧写可能重枚举，检查线缆和供电。保留数据升级与擦除升级是不同操作。
 
-- Confirm the tool actually lists the device before starting; retrying a flash
-  that never enumerated wastes a cycle and proves nothing.
-- For USB flashing, connect directly to the host (or a powered hub); download
-  mode resets the bus during the process.
-- Respect the project's choice between full-image and partition-scope writes;
-  a keep-data upgrade and an erase upgrade are different operations.
-- After flashing, verify over serial: boot log, kernel version, board, and
-  rootfs type must match the built configuration before declaring success.
+写入后通过串口验证本次启动、内核、板卡、rootfs 及变更功能，再报告成功。

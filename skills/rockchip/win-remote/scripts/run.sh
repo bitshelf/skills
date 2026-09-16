@@ -37,11 +37,12 @@ fi
 # ── Locate .win-target.conf by walking up from $PWD ──
 find_config() {
     local dir="$1"
-    while [ "$dir" != "/" ]; do
+    while :; do
         if [ -f "$dir/.win-target.conf" ]; then
             echo "$dir/.win-target.conf"
             return 0
         fi
+        [ "$dir" = "/" ] && break
         dir=$(dirname "$dir")
     done
     return 1
@@ -88,7 +89,8 @@ fi
 ERRFILE=$(mktemp)
 trap 'rm -f "$ERRFILE"' EXIT
 
-"${SSH_CMD[@]}" 2>"$ERRFILE"; rc=$?
+rc=0
+"${SSH_CMD[@]}" 2>"$ERRFILE" || rc=$?
 
 # Filter known PowerShell profile noise (not real errors)
 grep -v \

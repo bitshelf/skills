@@ -1,48 +1,48 @@
-# Remote Target and Boot Diagnosis
+# 远程目标与启动诊断
 
-## Map connections
+## 连接映射
 
-Resolve these independently from current configuration and evidence:
+从当前配置和证据分别解析：
 
-| Role | Evidence |
+| 角色 | 证据 |
 |---|---|
-| Build machine | SDK checkout and generated artifacts |
-| Dev Host | Configured SSH endpoint, serial bridge, USB topology |
-| DUT | Selected alias, serial model/banner, current network and storage |
+| 构建机 | SDK 源码及产物 |
+| Dev Host | 配置的 SSH 端点、串口桥、USB 拓扑 |
+| DUT | 所选别名、串口型号/启动信息、当前网络和存储 |
 
-A Dev Host can itself be a Rockchip board. Model or missing switch ports alone cannot distinguish roles. A target DHCP address may change after reboot. Keep host maintenance outside a target-debug task unless separately requested.
+Dev Host 也可能是 Rockchip 板，不能只凭型号或交换机端口缺失区分角色。DUT DHCP 地址重启后可能变化。没有独立请求时不扩大到主机维护。
 
-## Serial and boot evidence
+## 串口和启动证据
 
-1. Inspect the selected server's state and recent logs. Preserve the original failure before a reset.
-2. Check transport health separately from boot progress. A missing USB serial adapter can indicate host enumeration, cable, power, or mapping problems; it does not establish which one.
-3. For a requested restart, capture logs for that cycle and identify the last successful stage: DDR/SPL, firmware, U-Boot, kernel, userspace, shell.
-4. Use tool-supported waits/cursors or inspect retained logs so fast boot messages are not missed. Do not invent wait actions or assume sequential blocking waits run in parallel.
-5. Check expected kernel/build identity and the failing feature after reaching userspace. Search error text in context; an isolated word such as `error` is not a diagnosis.
+1. 查看所选服务状态及近期日志，复位前保留原始故障。
+2. 分别检查传输和启动进度。USB 串口缺失可能来自枚举、线缆、供电或映射，不能直接断定原因。
+3. 请求重启后记录对应周期，识别最后成功阶段：DDR/SPL、固件、U-Boot、内核、用户态、shell。
+4. 使用工具支持的等待/游标或保留日志，避免漏掉短暂启动输出。不虚构等待动作，也不把顺序阻塞调用视为并行。
+5. 到用户态后核对内核/构建身份并验证故障功能，结合上下文分析错误，而非只搜索孤立的 `error`。
 
-Use the server's log listing and returned paths rather than assuming archive numbering or log directory names. Preserve current evidence before loading reference logs or changing detector settings.
+按服务返回的日志列表和路径取证，不假设归档编号或目录。在加载参考日志或修改检测器前保存现场。
 
-## U-Boot and USB modes
+## U-Boot 和 USB 模式
 
-Use the managed U-Boot entry operation with supported arguments. On failure, inspect whether reboot occurred, which interrupt strategy ran, and what prompt is now present. Do not keep sending restart commands to a board already in U-Boot.
+使用受管 U-Boot 入口及支持的参数。失败时检查是否重启、使用了何种中断策略、当前提示符是什么。不对已在 U-Boot 的板反复发送重启。
 
-Check U-Boot `help`, storage devices, and supported Rockusb command before entering Loader. Verify `upgrade_tool LD` on the actual USB host. No enumerated Rockusb device can mean normal boot, a cable problem, permissions, or wrong host; it is not proof of normal operation.
+检查 U-Boot `help`、存储设备和 Rockusb 支持，再进入 Loader；在真实 USB 主机执行 `upgrade_tool LD`。未枚举可能是普通启动、线缆、权限或主机选错，不能据此证明运行正常。
 
-A recovery transition may time out because the transport stopped responding. Recheck logs and USB state before retrying. Firmware writing and readback belong to the rk-build flashing workflow.
+恢复切换时传输消失可能引发超时，重试前查日志和 USB。固件写入及回读使用 `rk-build`。
 
-## Serial shortcut keys (boot-time)
+## 开机串口快捷键
 
-RK platforms support serial key combinations held at power-on to trigger debug and flash events. They may need several attempts, and they are **ineffective when secure boot is enabled**.
+以下键表来自迁入仓库的历史资料，本次 IMA 按“快捷键”检索未命中原文。它不是所有 Rockchip 平台的统一保证：先核对当前 loader/U-Boot 的实现、串口接收时机及安全启动配置。对应软件未运行时不能依靠这些字符恢复。
 
-| Key (hold from power-on) | Action |
+| 开机阶段发送的字符 | 历史资料描述的动作 |
 |---|---|
-| `ctrl+c` | Enter the U-Boot command line |
-| `ctrl+d` | Enter Loader (flashing) mode |
-| `ctrl+b` | Enter MASKROM (flashing) mode |
-| `ctrl+f` | Enter fastboot mode |
-| `ctrl+m` | Print bidram/system info |
-| `ctrl+i` | Enable kernel `initcall_debug` |
-| `ctrl+p` | Print cmdline info |
-| `ctrl+s` | Enter the U-Boot command line after `Starting kernel...` |
+| `ctrl+c` | 进入 U-Boot 命令行 |
+| `ctrl+d` | 进入 Loader |
+| `ctrl+b` | 进入 MASKROM |
+| `ctrl+f` | 进入 fastboot |
+| `ctrl+m` | 打印 bidram/system 信息 |
+| `ctrl+i` | 启用内核 `initcall_debug` |
+| `ctrl+p` | 打印 cmdline |
+| `ctrl+s` | 在 `Starting kernel...` 后进入 U-Boot 命令行 |
 
-These are hardware-level entry paths that work even when the boot chain is broken (unlike `reboot loader` or U-Boot commands, they need no responsive software). Confirm the resulting mode the same way as any other entry: U-Boot prompt for the shell shortcuts, USB enumeration (`upgrade_tool LD`) for Loader/MASKROM/fastboot.
+使用受管串口提供的发送/中断能力，不抢占端点。U-Boot 以实际提示符验证，Loader/MASKROM 以 Rockusb 枚举及模式验证；fastboot 使用 `fastboot devices` 和所选设备身份验证，不用 `upgrade_tool LD` 代替。安全启动可能限制调试入口，以当前实现为准。

@@ -1,120 +1,70 @@
 ---
 name: aw-build
-description: Build, configure, adapt, pack, and flash Allwinner AIoT Linux SDK firmware using the SDK's build.sh workflow. Use in an AIoT Linux checkout with build/ and device/config/chips; covers board/SoC selection via ./build.sh config, board scheme adaptation (sys_config.fex, sys_partition.fex, env.cfg, board.dts), partial builds, pack image generation, FEL/EFEX flashing entry, and routing to the SDK's official module/production docs. Rockchip builds belong to rk-build/rk-debug; AOSP builds belong to the android skill.
+description: 使用 Allwinner AIoT Linux SDK 的 build.sh 流程选择芯片/板级方案、配置、适配、分模块构建、打包和 FEL/EFEX 烧写，并查阅 SDK 模块及量产文档。适用于包含 build/ 和 device/config/chips 的 AIoT Linux 源码树；Rockchip 使用 rk-build/rk-debug，Android 使用 android。
 ---
 
-# Allwinner AIoT Linux Build and Flash
+# Allwinner AIoT Linux 构建与烧写
 
-## Resolve the checkout and configuration
+## 确认源码和配置
 
-Work from the SDK root (the directory containing `build.sh` and `build/`). The
-entry script is `build.sh -> build/top_build.sh`; selections are persisted in
-`.buildconfig` at the root. Read `.buildconfig` first when it exists: it records
-the currently selected platform, OS variant, SoC (`LICHEE_IC`), board scheme
-(`LICHEE_BOARD`), flash media, and kernel version. Do not assume a previous
-selection matches the requested board; re-run config when the target changes.
+从包含 `build.sh`、`build/` 的 SDK 根目录操作。常见入口为 `build.sh -> build/top_build.sh`，选择保存在根目录 `.buildconfig`。有该文件时先读取平台、OS、`LICHEE_IC`、`LICHEE_BOARD`、存储介质和内核版本。不要假设旧配置对应本次目标；换目标时重新配置。下面列出已知 AIoT SDK 流程，使用前以当前脚本和随附指南核对。
 
-## Configure with ./build.sh config
+## 配置目标
 
-`./build.sh config` is an interactive selector (logic in `build/mkcommon.sh` and
-`build/mkcmd.sh`) with this order:
+`./build.sh config` 的逻辑通常位于 `build/mkcommon.sh` / `build/mkcmd.sh`，交互顺序为：平台、OS（bsp/dragonboard/buildroot/debian/yocto 等）、SoC、板级方案、存储介质、内核版本。
 
-1. platform (linux), 2. OS variant (bsp / dragonboard / buildroot / debian /
-yocto), 3. SoC (`LICHEE_IC`), 4. board scheme — enumerated live from
-`device/config/chips/<ic>/configs/`, 5. flash media, 6. kernel version.
+从 `device/config/chips/` 动态枚举芯片，从 `device/config/chips/<ic>/configs/` 枚举方案；不硬编码芯片或板名。配置持久化后，各次构建由脚本加载 `LICHEE_*` 环境并确定 `out/`，不要假设子进程可给父 shell 导出变量。
 
-The chip list is discovered dynamically from `device/config/chips/`; never
-hardcode a SoC or board name — enumerate what this checkout offers and select
-per the request. After config, the environment exports `LICHEE_*` variables and
-`out/` becomes the output root.
+## 按范围构建
 
-## Build only the requested scope
-
-| Request | Command |
+| 请求 | 常见命令（先核对本地支持） |
 |---|---|
-| Full build (recommended flow) | `./build.sh` |
-| Bootloader (boot0/U-Boot, brandy) | `./build.sh bootloader` |
-| Kernel | `./build.sh kernel` |
-| Kernel modules | `./build.sh modules` |
+| 全量构建 | `./build.sh` |
+| boot0/U-Boot/brandy | `./build.sh bootloader` |
+| 内核 | `./build.sh kernel` |
+| 内核模块 | `./build.sh modules` |
 | DTB / DTS | `./build.sh dtb` / `./build.sh dts` |
-| Boot image | `./build.sh bootimg` |
+| 启动镜像 | `./build.sh bootimg` |
 | Buildroot rootfs | `./build.sh buildroot_rootfs` |
-| Debian / Yocto / openWrt rootfs | `./build.sh debian_rootfs` / `yocto_rootfs` / `openwrt_rootfs` |
-| One buildroot package | `./build.sh buildroot_package <pkg>` |
-| Kernel menuconfig and save back | `./build.sh menuconfig` then `./build.sh saveconfig` |
-| U-Boot menuconfig and save back | `./build.sh uboot_menuconfig` then `./build.sh uboot_saveconfig` |
-| Rootfs menuconfig | `./build.sh buildroot_menuconfig` (also bsp_/openwrt_ variants) |
-| Clean | `./build.sh clean` / `distclean` |
+| Debian/Yocto/OpenWrt rootfs | `./build.sh debian_rootfs` / `./build.sh yocto_rootfs` / `./build.sh openwrt_rootfs` |
+| 单个 Buildroot 包 | `./build.sh buildroot_package <pkg>` |
+| 内核配置及保存 | `./build.sh menuconfig`，随后 `./build.sh saveconfig` |
+| U-Boot 配置及保存 | `./build.sh uboot_menuconfig`，随后 `./build.sh uboot_saveconfig` |
+| rootfs 配置 | `./build.sh buildroot_menuconfig`（其他变体按本地支持） |
+| 必要的清理 | `./build.sh clean` / `./build.sh distclean` |
 
-Details, output locations, and config-fragment handling: [references/build-reference.md](references/build-reference.md).
+产物位置、配置片段和其他命令见 [references/build-reference.md](references/build-reference.md)。从 SDK 根目录的新 shell 构建，避免跨配置遗留 `LICHEE_*`。失败后先查日志，不打包部分失败产物；管道存在时不能仅凭封装脚本最终返回值判断成功。
 
-Build in a fresh shell from the SDK root so the wrapper sets its own
-environment; do not carry `LICHEE_*` variables between different configs. A
-failed step must be diagnosed from its log before packaging; the wrapper's
-final exit status alone is not sufficient evidence when a pipeline ran.
+## 打包
 
-## Pack
+构建成功后按请求生成固件包：
 
-After a successful build, generate the flashable image (full-image packaging,
-not per-partition writes):
-
-| Image | Command |
+| 镜像 | 命令 |
 |---|---|
-| Normal firmware | `./build.sh pack` |
-| Secure firmware | `./build.sh pack_secure` |
-| Card (card0) image, serial output on TF card | `./build.sh pack_card` |
-| Secure card image | `./build.sh pack_secure_card` |
+| 普通固件 | `./build.sh pack` |
+| 安全固件 | `./build.sh pack_secure` |
+| 串口转 TF 卡槽的 card0 调试变体 | `./build.sh pack_card` |
+| 安全 card0 变体 | `./build.sh pack_secure_card` |
 
-The produced image lands under `out/` (naming follows the configured board and
-variant; `pack -d`/`pack_card` produce `*_card0.img`). A packed firmware image
-is a PhoenixSuit/LiveSuit image — it is not a raw SD/eMMC image for `dd`.
+输出通常在 `out/`，名称由板级方案和变体决定。`pack_card` / `pack -d` 的 `*_card0.img` 表示串口路由变体，不等于已制作可启动 SD 卡。PhoenixSuit/LiveSuit 固件包不能作为裸磁盘镜像直接 `dd`。
 
-## Flash
+## 烧写
 
-Flashing uses Allwinner tools (bundled SDK tools are deprecated; prefer current
-releases from the Allwinner customer service platform — all Windows tools ship
-inside APST):
-
-| Tool | Host | Use |
+| 工具 | 主机 | 用途 |
 |---|---|---|
-| PhoenixSuit | Windows | USB full/partial image flash (development) |
-| PhoenixUSBpro | Windows | Mass production, multi-device USB |
-| PhoenixCard | Windows | Bootable card image writing |
-| LiveSuit | Ubuntu | USB image flash |
+| PhoenixSuit | Windows | 开发阶段 USB 整包/分区烧写 |
+| PhoenixUSBpro | Windows | USB 多设备量产 |
+| PhoenixCard | Windows | 按工具模式制作启动卡或量产卡 |
+| LiveSuit | Linux | USB 固件烧写 |
 
-For remote Windows flashing hosts, the `win-remote` skill can drive these tools
-over SSH.
+按当前 SDK 指南获取匹配工具；部分 AIoT 指南要求从全志平台/APST 获取维护版本，不能假设各 SDK 内置工具仍受支持。远程 Windows 操作可使用 `win-remote`；SSH 不能自动控制 GUI，需现有命令行/自动化接口。
 
-The device must enter download (FEL/EFEX) mode first. Documented entry methods:
-hold `2` on the serial console while powering on; `efex` at the U-Boot prompt;
-`reboot efex` (or `adb shell reboot efex`) from a running system; FEL button if
-wired; blank/blanked boot media falls back to BROM download automatically.
-Details and cautions: [references/flashing.md](references/flashing.md).
+先进入 FEL/EFEX 下载模式。候选入口包括运行系统的 `reboot efex`、ADB 对应命令、U-Boot `efex`、开机串口字符 `2`、接线支持的 FEL 按键及启动介质无效后的 BROM 回退。每项以当前引导实现为准，详见 [references/flashing.md](references/flashing.md)。不为进入模式主动擦除介质。
 
-## Verify
+## 验证与板级适配
 
-After flashing, capture the boot log over serial and check the expected build
-identity (kernel version, board, rootfs type) before further work. For flashing
-failures, confirm the download-mode entry method actually engaged and that the
-tool recognized the device before retrying.
+烧写后采集串口启动日志，核对内核、板卡和 rootfs 身份并测试变更功能。失败时先确认模式入口及工具枚举，不盲重试。
 
-## Adapt a board scheme
+板级适配在 `device/config/chips/<ic>/configs/<board>/` 修改 DTS、defconfig、分区、U-Boot 环境及 sys_config，不仅改 `out/`。见 [references/board-config.md](references/board-config.md)。
 
-Board adaptation happens in the scheme directory
-`device/config/chips/<ic>/configs/<board>/` (kernel DTS, defconfig, partition
-table, U-Boot env, sys_config), not by editing generated output under `out/`.
-Layout, key files, and adaptation discipline: [references/board-config.md](references/board-config.md).
-
-## Target access and diagnostics
-
-- Serial console is the primary evidence source; the SDK's `reboot efex`,
-  U-Boot `efex`, and the serial-'2' download entry all act through it.
-- USB `adb` is available when the image enables it (`adb shell`, `adb push`);
-  the development guide's adb chapter covers enabling and troubleshooting.
-- After a kernel crash, the system may enter crashdump mode (watch for
-  `crashdump enter` on serial); `dmesg` in that shell shows the death scene —
-  see `docs/Product 量产指导文档/产线指南/Crashdump_使用指南.pdf`.
-- For subsystem questions (TWI, display, Wi-Fi, NPU, secure boot, OTA,
-  production triage), route via [references/doc-map.md](references/doc-map.md)
-  instead of guessing; the SDK ships the authoritative guide for each module
-  under `docs/`.
+受管串口使用当前可用 sermcp 工具，不并行抢占端点。镜像启用 ADB 时可用 `adb shell`、`adb push`。某些内核崩溃后进入 crashdump shell，观察 `crashdump enter` 后按对应指南取证，不能保证所有镜像均支持。TWI、显示、Wi-Fi、NPU、安全启动、OTA 和量产问题按 [references/doc-map.md](references/doc-map.md) 查当前 SDK 原文。

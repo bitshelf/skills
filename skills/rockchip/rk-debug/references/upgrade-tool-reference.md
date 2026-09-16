@@ -1,28 +1,22 @@
-# upgrade_tool Routing
+# upgrade_tool 操作路由
 
-Run upgrade_tool on the USB host connected to the selected target. The presence of the executable on the DUT does not establish a self-flashing topology.
+工具运行在连接所选 DUT 的 USB 主机上，DUT 内存在可执行文件不代表支持自烧写。
 
-Use the installed tool's help/version for syntax. `LD` enumerates connections; it does not independently identify the requested DUT. `PL`, where supported, provides the current partition layout. Do not infer rootfs flags or offsets from another board's parameter file.
+语法、大小写及参数查已安装工具帮助。`LD` 仅枚举连接，不独立证明 DUT 身份。支持 `PL` 时用其读取当前布局，不从其他板的 parameter 文件推断 rootfs 参数或偏移。
 
-## Operation reference
-
-| Operation | Purpose |
+| 操作 | 用途 |
 |---|---|
-| `LD` | Enumerate USB devices |
-| `DB <loader>` | Download a board-compatible loader to RAM (MASKROM recovery entry) |
-| `PL` | Inspect partition layout where supported |
-| `DI -<partition> <image>` | Write a partition image by name, e.g. `di -boot boot.img` |
-| `WL <start-sector> <image>` | Write a raw image at a verified sector offset |
-| `UF <update.img>` | Apply a packaged full firmware image |
-| `RD` | Reset the selected USB target |
+| `LD` | 枚举 USB 设备 |
+| `DB <loader>` | 下载兼容 loader 到 RAM |
+| `PL` | 查询分区布局（若支持） |
+| `DI -<partition> <image>` | 按分区名写入，如 `di -boot boot.img` |
+| `WL <start-sector> <image>` | 按已验证偏移写原始镜像 |
+| `UF <update.img>` | 写完整固件包 |
+| `RD` | 复位所选 USB 目标 |
 
-Commands are shown as the uppercase mnemonics printed by the tool's help; in practice they are typed lowercase (`upgrade_tool uf update.img`).
+- 常见版本中 `DI -r` 是 recovery，不是 rootfs，须核实本机映射。
+- 打包的 `update.img` 通常不是裸磁盘镜像，不按扩展名直接 `dd`。
+- 不复用历史 LBA 或块设备号。`WL` 前从当前分区表核对起点、容量和扇区单位。
+- loader 失败或存储异常时先诊断，不盲写或升级为擦除恢复。
 
-## Recovery notes
-
-- `DI -r` denotes recovery in common versions, not rootfs; verify installed mappings.
-- A Rockchip packaged `update.img` is not generally a raw SD-card image: never feed it to `dd` just because of its extension.
-- Never reuse a historical LBA or `/dev/mmcblk0pN`; derive start sector and capacity from the current target partition table and verify sector units before `WL`.
-- Stop on loader errors or unexpected storage information; do not blindly retry writes or escalate to erase/full recovery.
-
-For the full flashing procedure (transfer verification, size checks, boot acceptance), use the `rk-build` skill. The write workflow lives there; this page only routes recovery operations.
+传输校验、镜像容量、写入和启动验收的完整流程使用 `rk-build` 技能。

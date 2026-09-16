@@ -7,7 +7,7 @@ description: 从分散的远程上游（kernel.org cgit、googlesource gitiles�
 
 ## 核心原则
 
-1. **AI 只做分析与建议，不直接修改工作区代码文件**。产出物是 backport 分析报告 + 适配后的 patch 文件；apply / cherry-pick / 冲突解决 / 构建由用户人工执行。原因：backport 冲突解决依赖对目标分支历史上下文的理解，AI 盲目落笔会引入隐蔽回归。
+1. **按用户请求执行**。分析请求产出报告和适配 patch；用户要求移植或修复时，完成已授权的应用、冲突适配和必要验证。已有授权无需重复确认；提交、发布按用户指定范围处理。
 2. **免克隆取证**。内核约 4GB、AOSP 超 100GB，不做完整 clone；用各 git web 前端的 raw URL 直接拿 patch / 文件 / diff。取证阶段只需要 commit 粒度内容，clone 是浪费。
 3. **先定位、再取证、后落地，不跳步**。backport 失败的主因不是"应用不上"，而是找错补丁、漏掉依赖补丁、没察觉目标分支上下文漂移。
 
@@ -34,9 +34,9 @@ description: 从分散的远程上游（kernel.org cgit、googlesource gitiles�
 | 代码符号/模式 | grep.app 搜 GitHub 全量；Sourcegraph |
 | Yocto/Buildroot 包 bug | 先确认包的上游项目地址（repology.org），再到上游 git 找修复 |
 
-**依赖链检查（不可省）**：commit message 的 `Fixes:` 标签、邮件系列的 N/M 编号、补丁引用了但自身未定义的符号——依赖补丁必须一并 backport。
+**依赖链检查（不可省）**：检查 `Fixes:` 指向的引入问题提交、邮件系列及外部符号。`Fixes:` 不是依赖清单；只移植当前目标实际缺失且修复必需的依赖，或明确适配差异。
 
-**确认门**：向用户展示 patch 头部 + commit message 摘要，确认"是这个修复"后再继续。找错补丁是最大浪费源。
+展示 patch 头部和提交摘要以便核对；用户已指定修复或证据唯一时继续，仅在多个候选会实质改变范围时澄清。
 
 ### 阶段 2：免克隆取证
 
@@ -68,7 +68,7 @@ description: 从分散的远程上游（kernel.org cgit、googlesource gitiles�
 
 在用户提供的本地目标树上：
 
-- 用 Serena（find_references / 符号搜索）定位每个变更符号的本地定义与全部引用点；C/C++ 大项目需先确认 `compile_commands.json` 存在，否则 clangd 解析不全；**Serena 未安装时降级为 Grep/Glob 正则检索并标注置信度**。若运行环境配置了只读分析子代理（如插件版提供的 backport-analyst），优先派它按此降级路径工作
+- 用 Serena（find_references / 符号搜索）定位每个变更符号的本地定义与全部引用点；C/C++ 大项目需先确认 `compile_commands.json` 存在，否则 clangd 解析不全；**Serena 未安装时降级为 Grep/Glob 正则检索并标注置信度**
 - 逐 hunk 对比补丁上下文行与本地实际代码，标记上下文漂移
 - 用 Git MCP `git_log`（或 git log --grep）检查本地是否已含该修复、或有冲突提交
 - 每个 hunk 给出预判：**✅ 可直接应用 / ⚠️ 上下文偏移需适配 / ❌ 结构差异需人工重写**
@@ -87,17 +87,17 @@ description: 从分散的远程上游（kernel.org cgit、googlesource gitiles�
 
 输出：按 `assets/backport-report-template.md` 生成分析报告；适配后 patch 落盘到用户指定目录。
 
-**确认门**：报告交付即结束。不主动执行 apply / 构建 / 提交，除非用户明确说"直接改"。
+仅分析请求交付报告；实现请求继续应用和验证。不得把“报告已交付”作为已授权移植任务的终点。提交仍按用户要求。
 
 ## 工具配置
 
-推荐 MCP 组合与安装命令见 `references/mcp-setup.md`。最小可用集只需：**shell（curl 取证）+ Git MCP（本地树状态）+ Serena（本地符号检索）**。无 MCP 的环境，全部取证可用 curl + jq + base64 兜底；可将 `assets/claude-md-snippet.md` 内容直接写入项目 CLAUDE.md 作为常驻 SOP。
+推荐 MCP 组合与安装命令见 `references/mcp-setup.md`。最小可用集只需：**shell（curl 取证）+ Git 命令行 + 本地源码检索**。无 MCP 的环境，全部取证可用 curl + jq + base64 兜底；可将 `assets/claude-md-snippet.md` 内容直接写入项目 CLAUDE.md 作为常驻 SOP。
 
 ## 反模式（禁止）
 
 - ❌ 取证不完整就分析（截断 patch → 漏 hunk → 错误结论）
 - ❌ 直接修改本地代码文件（除非用户明确授权）
-- ❌ 漏掉依赖补丁链（只拿单个 commit，不管它的 Fixes 前序）
+- ❌ 漏掉依赖补丁链（只拿单个 commit，不检查实际依赖）
 - ❌ 省略溯源标注（Yocto Upstream-Status / 内核 upstream 标注是审计硬性要求）
 - ❌ 把 gitiles / Gerrit 的 base64 响应当明文解析
 - ❌ 用 git log/diff 直接操作未 clone 的远程 URL（git 不支持，必须用 web 前端 URL）
@@ -108,13 +108,13 @@ description: 从分散的远程上游（kernel.org cgit、googlesource gitiles�
 
 输入："把 CVE-2024-26600 的修复 backport 到我们 Yocto 的 linux 5.15 内核"
 
-流程：security-tracker JSON 查 fixed version → cgit `/patch/?id=<sha>` 拉 patch → 阶段 3 分析出变更符号 → Serena 在本地 5.15 树查引用 → 发现某函数在 5.15 路径不同（⚠️ 适配）→ 产出适配 patch + 报告 → 指导 `devtool modify linux-yocto` 集成 → 用户人工 `devtool build` 验证。
+流程：security-tracker JSON 查 fixed version → cgit `/patch/?id=<sha>` 拉 patch → 阶段 3 分析出变更符号 → Serena 在本地 5.15 树查引用 → 发现某函数在 5.15 路径不同（⚠️ 适配）→ 产出适配 patch + 报告 → 指导 `devtool modify linux-yocto` 集成 → 按授权执行 `devtool build` 验证。
 
 **示例 2：AOSP Gerrit CL 移植到 android-12 本地分支**
 
 输入："https://android-review.googlesource.com/c/platform/frameworks/base/+/1234567 移植到我的 android-12 分支"
 
-流程：Gerrit REST 拿 patch（base64 -d）→ 分析 → 本地 repo 树 Serena 定位 → 报告中指出该 CL 依赖的另一个前序 CL → 用户确认后产出 patch → 指导 `repo download` 或 `git am` → 用户人工解冲突、`m` 构建。
+流程：Gerrit REST 拿 patch（base64 -d）→ 分析 → 本地 repo 树 Serena 定位 → 报告中指出该 CL 依赖的另一个前序 CL → 用户确认后产出 patch → 指导 `repo download` 或 `git am` → 按授权解冲突、`m` 构建。
 
 **示例 3：Debian 已修复的 CVE 提取补丁给 Buildroot 用**
 

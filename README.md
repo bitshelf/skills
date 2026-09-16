@@ -10,7 +10,7 @@
 | `rk-debug` | rockchip | ✓ | | | Rockchip 目标机调试：串口日志、SSH、I2C/GPIO/regulator、Loader/MASKROM 恢复 |
 | `aw-build` | allwinner | | | ✓ | Allwinner AIoT Linux SDK：`./build.sh config` 板级选择、分模块/全量编译、pack 打包、FEL/EFEX 烧写 |
 | `schematic-terminal` | devtools | ✓ | ✓ | ✓ | 原理图读图：多模态视觉读 PNG/JPEG/WebP/PDF，按 OBSERVED/LABEL-LINKED/INFERRED/UNKNOWN 建连接台账后在终端重绘（自带 locate/render/lint/preview 脚本；不用 OCR 反推连接） |
-| `semcode` | devtools | ✓ | ✓ | ✓ | Linux kernel / C-C++ 语义代码检索（semcode MCP，首次使用自动配置） |
+| `semcode` | devtools | ✓ | ✓ | ✓ | Linux kernel / C-C++ 语义代码检索（semcode MCP，首次使用自动配置；SDK 内核树位于子目录时自动写 `SEMCODE_GIT_REPO`） |
 | `upstream-backport` | devtools | ✓ | ✓ | ✓ | 从远程上游（kernel.org/googlesource/salsa/Gerrit/GitHub/lore）免克隆取证补丁，backport 分析、冲突预判与落地指导（Buildroot/Yocto/AOSP/Debian/内核） |
 | `win-remote` | rockchip | ✓ | ✓ | ✓ | SSH 远程控制 Windows：固件烧写、ADB 测试、PowerShell 远程执行 |
 

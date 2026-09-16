@@ -1,40 +1,36 @@
 ---
 name: rk-debug
-description: Diagnose Rockchip Linux target boot and peripheral problems using managed serial logs, target SSH, and runtime evidence. Use for Rockchip I2C, GPIO, regulator, switch/PTP, U-Boot, and Loader/MASKROM recovery tasks; firmware building and writing belong to rk-build.
+description: 通过受管串口日志、目标 SSH 和运行证据诊断 Rockchip Linux 启动、I2C、GPIO、regulator、交换机/PTP、U-Boot 与 Loader/MASKROM 恢复问题。固件构建和写入使用 rk-build。
 ---
 
-# Rockchip Target Debugging
+# Rockchip 目标机调试
 
-## Resolve the DUT and transport
+## 确认 DUT 与连接
 
-Find current project instructions and target configuration, including parent directories. Select the requested DUT and resolve its serial endpoint, Dev Host, relay mapping, and credentials. Do not assume a default IP, root login, interface name, I2C bus, or first configured device. Use the project's parser or resolved config tools for JSONC; regex comment stripping can corrupt strings. When configuration creation is requested, adapt the [configuration example](.target.jsonc.example) and verify its fields against the installed sermcp version; replace placeholders and omit unwired relay controls.
+查阅当前项目及父目录的说明和目标配置，解析所选 DUT 的串口端点、Dev Host、继电器映射与凭证。不默认 IP、root 登录、网卡名、I2C 总线或首台设备。JSONC 使用项目解析器或配置查询工具；正则去注释可能破坏字符串。需要创建配置时参考[配置示例](.target.jsonc.example)，按已安装 sermcp 的字段校验，替换占位符并省略未接线的继电器。
 
-The Dev Host provides serial/USB access; the DUT is the board under test. Derive target SSH addresses from current target evidence and corroborate model, kernel, and storage. Do not reboot or modify host storage as a side effect of target debugging.
+Dev Host 提供串口/USB 连接，DUT 是被测板。依据当前目标证据确定 SSH 地址，并核对型号、内核和存储。不要因调试 DUT 而重启主机或修改其存储。
 
-Use available sermcp MCP tools for managed serial access. Inspect their current schemas before calling them; examples here name operations, not fixed argument signatures. Do not connect raw socat/nc/tio or interactive `dutabo serial` alongside the managed engine. If MCP is absent, inspect setup and use verified target SSH for suitable work; configuration presence alone does not guarantee a running server. Do not overwrite configuration or start a second serial owner as a troubleshooting shortcut.
+受管串口使用可用的 sermcp MCP 工具，调用前检查当前 schema。此处工具名称表示操作，不是固定参数签名。不在受管引擎运行时并行使用裸 socat/nc/tio 或交互式 `dutabo serial`。MCP 缺失时检查配置，适用工作可用已验证的 DUT SSH；配置文件存在不代表服务已启动。不要覆盖配置或创建第二个串口所有者来绕过故障。
 
-## Evidence first
+## 先取证
 
-Read state and recent logs before resetting. Save the failure evidence and identify its boot cycle. `crashed` needs panic/BUG/Oops evidence; a timeout or blank echo does not prove a kernel crash or physical power loss. A short complete shell prompt is useful liveness evidence. Distinguish a transport disconnect from a silent DUT.
+复位前读取状态和近期日志，保存故障及所属启动周期。`crashed` 需要 panic/BUG/Oops 证据；超时和空白回显不能证明内核崩溃或物理掉电。短而完整的 shell 提示符也是存活证据。区分传输断连与 DUT 无响应。
 
-Use `serial_send_command` for Linux commands, `serial_uboot_command` for a confirmed U-Boot prompt, and available log/state tools for observations. For an authorized reboot, follow the new boot's logs and use board-appropriate milestones; autologin systems may not emit `login:`. A tool timeout during reboot can reflect the expected disappearance of the shell: inspect state before repeating the action.
+Linux 命令使用 `serial_send_command`，已确认的 U-Boot 提示符使用 `serial_uboot_command`，观察使用状态/日志工具。已授权重启后跟踪新周期并按板级里程碑判断；自动登录系统未必输出 `login:`。重启期间超时可能只是 shell 消失，重复动作前先查状态。
 
-For connection or boot-stage diagnosis, read [references/remote-target-debug.md](references/remote-target-debug.md). For peripheral work, read [references/peripherals.md](references/peripherals.md).
+连接和启动阶段诊断见 [references/remote-target-debug.md](references/remote-target-debug.md)，外设诊断见 [references/peripherals.md](references/peripherals.md)。
 
-## Recovery
+## 恢复
 
-When entering U-Boot, choose software restart for a responsive shell and configured hardware recovery when software entry is unavailable. Respect a user-selected method. Use the configured interrupt character/strategy and verify the resulting prompt; success with `bootdelay=0` is board-dependent.
+进入 U-Boot 时，响应正常的 shell 可软件重启，否则使用已配置硬件恢复；尊重用户选定方法。按配置发送中断字符并验证提示符，`bootdelay=0` 下能否中断取决于板级实现。
 
-Loader mode requires a supported Linux/U-Boot command and USB confirmation on the flashing host. MASKROM requires the board's actual button/reset wiring. Boot-time serial shortcuts offer a hardware-level alternative that needs no responsive software — hold `ctrl+c` (U-Boot shell), `ctrl+d` (Loader), or `ctrl+b` (MASKROM) from power-on; see [references/remote-target-debug.md](references/remote-target-debug.md) for the full key table and caveats. Inspect tool semantics before assuming `maskrom pulse` performs the full sequence. Avoid persistent `saveenv`, partition writes, or bootloader replacement merely to obtain a prompt.
+Loader 入口需当前 Linux/U-Boot 支持，并在 USB 主机确认枚举。MASKROM 的物理入口依赖真实按键/复位接线。部分 Rockchip 引导程序还支持开机串口快捷键，见 [references/remote-target-debug.md](references/remote-target-debug.md)；它们需要相应软件阶段运行，不能代替启动链损坏时的硬件恢复。先检查工具语义，不假设 `maskrom pulse` 自动包含完整复位时序。不要仅为获取提示符执行持久 `saveenv`、分区写入或替换引导程序。
 
-After one unsuccessful recovery attempt, inspect new logs, relay/tool results, and USB state before choosing the next step. Stop when identity or wiring is unresolved, or recovery would exceed authorized scope. Use `rk-build` for a requested firmware write; [references/upgrade-tool-reference.md](references/upgrade-tool-reference.md) describes the boundary.
+一次恢复失败后先检查新日志、继电器/工具结果和 USB 状态。身份、接线未明或下一步超出授权时停止相关操作。请求写固件时使用 `rk-build`；[references/upgrade-tool-reference.md](references/upgrade-tool-reference.md)说明操作边界。
 
-## Board-specific references
+## 板级信息
 
-Read only when the actual board or peripheral matches:
+板级 I2C 映射、DTS 链和 pinmux 个案保留在实际项目文档中，不随通用技能发布。总线、控制器与设备地址从运行系统解析，不使用历史默认值。
 
-- [BQ25792 charger case](references/charger-debug.md): custom driver diagnostics; confirm register map, ABI, and electrical limits before writes.
-
-Board-level case notes (I2C maps, DTS chains, per-board pinmux) do not belong inside this skill. Keep them with the project or in this repo's `boards/` directory, and resolve bus numbers, controller addresses, and device addresses from the running system instead of hardcoding them.
-
-Report observations, diagnosis, changes, and verification limits separately. Include the selected DUT and relevant log/artifact locations. Do not declare a peripheral fixed solely because a command succeeded.
+报告观察、诊断、修改和验证限制，附 DUT 及日志/产物位置。不凭单条命令成功宣称外设已修复。
