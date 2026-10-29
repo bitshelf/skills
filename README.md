@@ -14,10 +14,17 @@
 | `upstream-backport` | devtools | ✓ | ✓ | ✓ | 从远程上游（kernel.org/googlesource/salsa/Gerrit/GitHub/lore）免克隆取证补丁，backport 分析、冲突预判与落地指导（Buildroot/Yocto/AOSP/Debian/内核） |
 | `win-remote` | rockchip | ✓ | ✓ | ✓ | SSH 远程控制 Windows：固件烧写、ADB 测试、PowerShell 远程执行 |
 | `writing-bash-scripts` | devtools | ✓ | ✓ | ✓ | Bash 脚本创建、修改、错误诊断与 ShellCheck 检查 |
+| `rust-development` | devtools | | | | Rust 编写、重构与排障：Rust 官方/Google 风格、多人持续维护的 crate 选型、错误/日志、性能与测试 |
 
 不同厂商 SDK 差异大，profile 互斥路由：Rockchip Linux SDK 项目装 `linux`，AOSP 系统项目装 `android`，
 Allwinner SDK 项目装 `allwinner`（均含 schematic-terminal + upstream-backport + semcode + win-remote 通用件）。
 skill 本身不与具体芯片/板卡型号绑定，板级个案放在仓库 `boards/` 目录。
+
+`rust-development` 可按需单独安装（也包含在 `all` / `devtools` 选择中），不默认加入 SDK profile：
+
+```bash
+./install.sh --project /path/to/project --harness codex rust-development
+```
 
 ## Android App 开发：直接使用上游
 
