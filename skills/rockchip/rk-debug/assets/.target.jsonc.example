@@ -1,0 +1,28 @@
+// Rockchip Target Device Configuration (.target.jsonc)
+// Copy to the project root as .target.jsonc and edit — or create it
+// interactively with `dutabo init` (writes the file and registers the
+// sermcp MCP entry, preserving your comments).
+//
+// dev_hosts[] each nest their duts[]. A DUT inherits ip/user/pass from its
+// parent host. Top-level sections are global fallbacks; a DUT value overrides.
+{
+  "dev_hosts": [
+    {
+      "ip": "<DEV_HOST_IP>",   // Dev Host (serial bridge + USB flashing)
+      "user": "<SSH_USER>",        // ssh user
+      "duts": [
+        {
+          "dut_name": "dut-board-1",
+          "serial": { "port": 2000 },       // ser2net TCP port
+          "target": { "login_user": "root" },
+          "uboot": { "interrupt_char": "ctrl_c" },
+          "relay": {
+            "port": 2001,       // relay TCP port (optional)
+            "reset_ch": 1,      // SRST relay channel
+            "maskrom_ch": 2     // Board-specific MASKROM control channel
+          }
+        }
+      ]
+    }
+  ]
+}

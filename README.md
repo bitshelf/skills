@@ -2,10 +2,11 @@
 
 ## Skill
 
-| Skill | 分类 | linux profile | android profile | allwinner profile | 用途 |
+| Skill | 分类 | Linux 分组 | Android 分组 | Allwinner 分组 | 用途 |
 | --- | --- | :---: | :---: | :---: | --- |
 | `android` | rockchip | | ✓ | | Rockchip Android BSP/AOSP 开发与排障：framework、HAL、产品配置、RKDocs、GKI/驱动及固件构建 |
 | `aosp-docs` | devtools | | ✓ | | AOSP 架构/源码研究：版本判定、官方文档检索、证据引用 |
+| `bpp` | devtools | ✓ | ✓ | ✓ | 社区最佳实践落地：kernel/U-Boot、Debian/Ubuntu、Yocto、OpenHarmony/openEuler、Android/AOSP 的一手资料、维护者线索、工业方案、决策澄清、实现与验证 |
 | `rk-build` | rockchip | ✓ | | | Rockchip Linux SDK 构建与烧写：kernel/bootloader/rootfs/固件打包 |
 | `rk-debug` | rockchip | ✓ | | | Rockchip 目标机调试：串口日志、SSH、I2C/GPIO/regulator、Loader/MASKROM 恢复 |
 | `aw-build` | allwinner | | | ✓ | Allwinner AIoT Linux SDK：`./build.sh config` 板级选择、分模块/全量编译、pack 打包、FEL/EFEX 烧写 |
@@ -16,15 +17,30 @@
 | `writing-bash-scripts` | devtools | ✓ | ✓ | ✓ | Bash 脚本创建、修改、错误诊断与 ShellCheck 检查 |
 | `rust-development` | devtools | | | | Rust 编写、重构与排障：Rust 官方/Google 风格、多人持续维护的 crate 选型、错误/日志、性能与测试 |
 
-不同厂商 SDK 差异大，profile 互斥路由：Rockchip Linux SDK 项目装 `linux`，AOSP 系统项目装 `android`，
-Allwinner SDK 项目装 `allwinner`（均含 schematic-terminal + upstream-backport + semcode + win-remote 通用件）。
+不同厂商 SDK 差异大，按项目选择上表分组：Rockchip Linux、AOSP 系统或 Allwinner。
+分组是本仓库的推荐技能组合，安装时用 `--skill` 指定名称（完整命令见下文），不是 skills CLI 的 profile 参数。
 skill 本身不与具体芯片/板卡型号绑定，板级个案放在仓库 `boards/` 目录。
 
-`rust-development` 可按需单独安装（也包含在 `all` / `devtools` 选择中），不默认加入 SDK profile：
+`rust-development` 可按需单独安装，不默认加入 SDK 分组：
 
 ```bash
-./install.sh --project /path/to/project --harness codex rust-development
+cd /path/to/project
+npx skills add bitshelf/skills --skill rust-development --agent codex
 ```
+
+`bpp` 面向“根据社区最佳实践，把 xxx 调好/做稳定”，也可单独安装：
+
+```bash
+# 用户级 Codex
+npx skills add bitshelf/skills --skill bpp --agent codex -g
+# 当前项目的 Claude Code
+npx skills add bitshelf/skills --skill bpp --agent claude-code
+```
+
+例如“按社区最佳实践修复网关断网，保持当前发行版，先复现再验证”。支持斜杠技能调用的客户端
+可用 `/bpp <任务>`；其他客户端按下文调用表选择 `bpp`（如 Codex 的 `$bpp <任务>`）。
+技能正文也识别 `/bpp` 的任务意图，但不自行注册跨客户端通用命令。它按目标版本检索官方资料、
+维护者讨论和工业方案，只追问关键取舍，并推进到修改、回归和回退证据；无设备时明确标注待测。
 
 ## Android App 开发：直接使用上游
 
@@ -34,13 +50,8 @@ skill 不在本仓库收录副本**，直接安装 Google 官方上游 [android/
 build-system / camera / jetpack-compose / play / … 目录）：
 
 ```bash
-# 官方 Android CLI（其安装说明见上游 android-cli skill）
-android skills add r8-analyzer --project=.   # 单个 skill 装进当前项目
-android skills add --all                    # 全部 skill，装给所有检测到的 agent
-
-# 或用 skills CLI（与本仓库方式一同一套路，交互勾选 / -s <name> -a <agent> 子集）：
-npx skills@latest add android/skills
-npx skills update                           # 跟随上游更新
+npx skills add android/skills
+npx skills update
 ```
 
 注意区分：本仓库 `rockchip/android` skill 是 Rockchip AOSP 系统/SDK 开发、排障与构建，与上游 App 开发 skill 互补。
@@ -51,68 +62,68 @@ npx skills update                           # 跟随上游更新
 
 ## 安装
 
-### 方式一：npx skills（推荐）
+统一使用上游 [skills CLI](https://github.com/vercel-labs/skills)。需要 Node.js 和 npm（包含 npx），
+版本要求见上游文档。默认安装到当前项目；加 `-g` 安装到用户级。
 
 ```bash
-npx skills@latest add bitshelf/skills
-# 交互界面勾选想要的 skill × 目标 agent —— 按需只选 Rockchip 或只选 Allwinner，
-# 不需要分支或拆仓库；Codex 生态的图形化 skill 管理器同样按仓库列出可选技能。
+# 在目标项目目录执行，交互选择技能和 agent
+npx skills add bitshelf/skills
 
-# 非交互子集安装（在目标项目目录内执行；-g 装用户级）：
-npx skills@latest add bitshelf/skills -s rk-build -s rk-debug -s semcode -a codex
-npx skills update            # 按 skills-lock.json 升级
+# 仅查看仓库中的技能
+npx skills add bitshelf/skills --list
+
+# 指定技能和 agent；-y 跳过交互确认
+npx skills add bitshelf/skills --skill rk-build rk-debug semcode --agent codex -y
+
+# 用户级安装；Claude Code 的 agent 名称为 claude-code
+npx skills add bitshelf/skills --skill bpp --agent claude-code -g
 ```
 
-### 方式二：各 agent 官方推荐位置
+### 按 SDK 分组安装
 
-不借助第三方安装器，把 skill 目录放进对应 agent 的 skills 目录即可（Claude 插件市场、
-`~/.agents/skills`（Codex / DeepSeek Deep Code）、`~/.zcode/skills`、`~/.pi/agent/skills` 等，路径表见下）。
-
-### 方式三：install.sh（curl 直装 / 离线 / 项目 profile）
-
-无需克隆仓库，直接从 GitHub 执行 install.sh（自动下载 tarball，copy 模式）：
+在目标 SDK 目录运行相应命令；`--agent codex` 可替换为 `--agent claude-code`，
+也可省略以交互选择。用户级安装加 `-g`。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bitshelf/skills/main/install.sh | \
-    bash -s -- --profile linux                                   # 用户级
-cd /path/to/rk-linux-sdk
-curl -fsSL https://raw.githubusercontent.com/bitshelf/skills/main/install.sh | \
-    bash -s -- --project . --profile linux                       # 项目级
-# 固定版本 / 使用 fork：加 --ref <tag|sha>、--repo owner/name
-# 想先审再跑：curl -fsSL … -o install.sh && less install.sh && ./install.sh …
+# Rockchip Linux
+npx skills add bitshelf/skills --agent codex --skill \
+  rk-build rk-debug bpp schematic-terminal upstream-backport semcode win-remote writing-bash-scripts
+
+# Rockchip Android / AOSP 系统
+npx skills add bitshelf/skills --agent codex --skill \
+  android aosp-docs bpp schematic-terminal upstream-backport semcode win-remote writing-bash-scripts
+
+# Allwinner Linux
+npx skills add bitshelf/skills --agent codex --skill \
+  aw-build bpp schematic-terminal upstream-backport semcode win-remote writing-bash-scripts
 ```
 
-已克隆仓库（或离线）时等价于本地脚本：
+### 本地源码与安装管理
 
 ```bash
-cd /path/to/allwinner-sdk
-/path/to/skills/install.sh --project . --profile allwinner       # aw-build upstream-backport semcode win-remote
-cd /path/to/rk-linux-sdk
-/path/to/skills/install.sh --project . --profile linux
-# 按分类选择（如只要 Rockchip + devtools，不要 Allwinner）：
-/path/to/skills/install.sh --category rockchip,devtools [--project .]
+# 从本地 checkout 安装，在目标项目目录执行
+npx skills add /path/to/skills --skill bpp --agent codex
+
+# 查看、更新和卸载项目技能；用户级操作加 -g
+npx skills list
+npx skills update
+npx skills remove bpp
 ```
 
-项目级默认 **copy** 模式（自包含、可共享），自动把各 harness 目录追加进 `.git/info/exclude`；
-用户级默认 symlink（远程 curl 安装时为 copy，symlink 需本地克隆）。`--uninstall`、
-`--harness <list>`、`--force` 可选。
-
-### Harness 目录对照
+### 客户端技能发现目录
 
 | Harness | 用户级 | 项目级 |
 | --- | --- | --- |
 | Claude Code | `~/.claude/skills/` | `<proj>/.claude/skills/` |
 | Codex | `~/.agents/skills/` | `<proj>/.agents/skills/`，从启动目录沿父目录扫描至仓库根 |
-| ZCode | `~/.zcode/skills/` | `<proj>/.zcode/skills/` + `<proj>/.agents/skills/` |
+| ZCode | `~/.zcode/skills/` | 在目标版本的 Settings → Skills 确认，或通过 Import 选择 Project |
 | DeepSeek Deep Code | `~/.agents/skills/` | `<proj>/.deepcode/skills/` |
 | pi.dev | `~/.pi/agent/skills/` | `<proj>/.pi/agent/skills/` |
 
 目录依据及验证范围见 [审核报告](docs/review-report.md)。Codex 采用当前官方文档的
 `.agents/skills`；旧版安装器的 `.codex/skills` 不作为跨版本保证。DeepSeek 这里指支持
 Agent Skills 的 **Deep Code 客户端**，仅配置 DeepSeek 模型 API 不会自动发现技能。
-ZCode 官方明确支持用户级 `.zcode/skills`；项目级目录需在目标版本的 Settings → Skills
-刷新并检查诊断，或通过 Import 选择 Project。本安装器保留项目 `.zcode/skills` 与
-`.agents/skills` 两个目标，不能以目录存在代替客户端加载验证。
+ZCode 的旧项目安装可能在 `.zcode/skills` 和 `.agents/skills` 都留有副本或链接。
 
 ## 调用与验证
 

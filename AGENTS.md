@@ -28,20 +28,20 @@ under `skills/<category>/<name>/` (categories: `rockchip`, `allwinner`,
   client-specific tool names. Harness-specific setup belongs in the setup
   scripts and must degrade gracefully when the harness is absent (see
   `skills/devtools/semcode/setup-semcode.sh`).
-- Supported harnesses and their discovery paths are documented in
-  [README.md](README.md) and encoded in `install.sh`. `npx skills` is the
-  preferred install path once the repo is on GitHub; `install.sh` also runs
-  directly from GitHub (`curl -fsSL …/install.sh | bash -s -- …` — it
-  downloads the repo tarball itself and copies skills, no clone needed) and
-  covers offline use and project-scoped profiles
-  (`linux` / `android` / `allwinner`).
+- Use upstream `npx skills` for installation, listing, updates, and removal.
+  [README.md](README.md) documents SDK skill groups as explicit `--skill`
+  selections; do not introduce a custom installer or profile syntax.
+  Use upstream agent names (for example `codex` and `claude-code`).
 
 ## Useful commands
 
 ```bash
-./install.sh --list                          # inventory: skills, profiles, harnesses
-./install.sh --project . --profile linux     # install into this project (copy mode)
-./install.sh --uninstall --project .         # remove what install.sh put down
+npx skills add bitshelf/skills --list
+npx skills add bitshelf/skills --skill rk-build rk-debug --agent codex
+npx skills add . --list                     # inspect the local checkout
+npx skills list
+npx skills update
+npx skills remove rk-build rk-debug
 ```
 
 Technical claims in skill content (build commands, upgrade_tool operations,
